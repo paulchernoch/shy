@@ -1,0 +1,13 @@
+[package]
+name = "shy"
+version = "0.1.0"
+authors = ["PaulChernoch-Shell <pchernoch@shelltechworks.com>"]
+edition = "2018"
+
+[dependencies]
+itertools = "*"
+spectral = "0.6.0"
+custom_derive = "0.1.7"
+enum_derive = "0.1.7"
+
+
