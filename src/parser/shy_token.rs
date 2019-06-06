@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::lexer::ParserToken;
+use std::mem::discriminant;
 
 /*
     Data used in the ShuntingYard parser:
@@ -196,8 +197,8 @@ impl From<ParserToken> for ShyOperator {
             ParserToken::RelationalOp(ref s) if *s == ">" => ShyOperator::GreaterThan,
             ParserToken::RelationalOp(ref s) if *s == ">="  || *s == "≥" => ShyOperator::GreaterThanOrEqualTo,
 
-            ParserToken::EqualityOp(ref s) if *s == "=" => ShyOperator::Equals, 
-            ParserToken::EqualityOp(ref s) if *s == "!=" || *s == "≠"  => ShyOperator::NotEquals, 
+            ParserToken::EqualityOp(ref s) if *s == "==" => ShyOperator::Equals, 
+            ParserToken::EqualityOp(ref s) if (*s == "!=" || *s == "≠")  => ShyOperator::NotEquals, 
 
             ParserToken::LogicalOp(ref s) if *s == "&&" => ShyOperator::And, 
             ParserToken::LogicalOp(ref s) if *s == "||"  => ShyOperator::Or, 
@@ -289,6 +290,12 @@ pub enum ShyToken<'a> {
     OperatorWithValue(ShyOperator, ShyValue<'a>),
     Error,
     None
+}
+
+impl<'a> ShyToken<'a> {
+    pub fn is_error(&self) -> bool {
+        discriminant(&ShyToken::Error) == discriminant(self)
+    }
 }
 
 /// Convert a ParserToken into a ShyToken.
@@ -390,6 +397,22 @@ mod tests {
         let shy_token: ShyToken = ParserToken::Function("sin".to_string()).into();
         match shy_token {
             ShyToken::OperatorWithValue(ShyOperator::FunctionCall, ShyValue::FunctionName(ref func_name)) if *func_name == "sin" => assert!(true),
+            _ => assert!(false)
+        };
+    }
+
+    #[test]
+    /// Verify that a ShyOperator::NotEquals is parsed from a ParserToken.
+    fn parse_not_equals() {
+        let mut shy_token: ShyToken = ParserToken::EqualityOp("!=".to_string()).into();
+        match shy_token {
+            ShyToken::Operator(ShyOperator::NotEquals) => assert!(true),
+            _ => assert!(false)
+        };
+
+        shy_token = ParserToken::EqualityOp("≠".to_string()).into();
+        match shy_token {
+            ShyToken::Operator(ShyOperator::NotEquals) => assert!(true),
             _ => assert!(false)
         };
     }

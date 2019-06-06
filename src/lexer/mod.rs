@@ -721,8 +721,8 @@ impl<'e> Lexer<'e> {
     /// from its use as a postfix factorial operator.
     fn exclamation(&mut self, e: LexerEvent) -> Option<ParserToken> {
         match e {
-            // The "!="" relational operator.
-            LexerEvent::Equals => self.transition_with_pop_plus_event(LexerState::Empty, |s| Some(ParserToken::RelationalOp(s)), e),
+            // The "!="" equality operator.
+            LexerEvent::Equals => self.transition_with_pop_plus_event(LexerState::Empty, |s| Some(ParserToken::EqualityOp(s)), e),
 
             // Expression ending characters leave no doubt that the exclamation point is a postfix factorial operator, not a prefix logical not.
             LexerEvent::ExpressionEnder(_) => self.transition_with_pop_and_put_back(LexerState::Empty, |_s| Some(ParserToken::FactorialOp), e),
@@ -949,7 +949,7 @@ mod tests {
                 ParserToken::OpenParenthesis,
                 ParserToken::Integer("3".to_string()),
                 ParserToken::FactorialOp,
-                ParserToken::RelationalOp("!=".to_string()),
+                ParserToken::EqualityOp("!=".to_string()),
                 ParserToken::Integer("6".to_string()),
                 ParserToken::CloseParenthesis
             ]

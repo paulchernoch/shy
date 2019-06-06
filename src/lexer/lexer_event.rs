@@ -267,7 +267,7 @@ mod tests {
         ];
         let mut actual_events = Vec::new();
         actual_events.extend(lex_iter);
-        assert_that!(&actual_events.iter()).contains_all_of(&expected_events.iter());
+        assert!(actual_events.iter().eq(expected_events.iter()));
     }
 
 }
