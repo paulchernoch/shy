@@ -316,13 +316,34 @@ mod tests {
         ]);
     }
 
+    #[test]
+    /// Verify that logical not (a prefix operator) is handled properly when parenthesized.
+    fn function_call() {
+        compile_test_case(
+            "0.5 + sin(π/6)", 
+            vec![
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Rational(0.5))),
+            ShyToken::Value(ShyValue::FunctionName("sin".to_string())),
+            ShyToken::Value(ShyValue::Variable("π".to_string())),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(6))),
+            ShyToken::Operator(ShyOperator::Divide),
+            ShyToken::Operator(ShyOperator::FunctionCall),
+            ShyToken::Operator(ShyOperator::Add),
+        ]);
+    }
+
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
         let mut shy: ShuntingYard = expression.into();
         match shy.compile() {
-            Ok(token_count) => assert_that!(token_count).is_equal_to(expected_tokens.len()),
+            Ok(token_count) => {
+                if token_count != expected_tokens.len() {
+                    println!("Shy:\n{:?}", shy);
+                }
+                assert_that!(token_count).is_equal_to(expected_tokens.len())
+            },
             Err(msg) => {
-               println!("Shy:\n{:?}", shy);
-               assert!(false, format!("Error compiling: {}", msg))
+                println!("Shy:\n{:?}", shy);
+                assert!(false, format!("Error compiling: {}", msg))
             }
         }
         assert!(expected_tokens.iter().eq(shy.postfix_order.iter()), );
