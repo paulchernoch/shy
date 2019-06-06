@@ -271,6 +271,8 @@ impl<'a> From<ParserToken> for ShyValue<'a> {
             ParserToken::Integer(s) => ShyValue::Scalar(ShyScalar::Integer(s.parse::<i64>().unwrap())),
             ParserToken::Rational(s) => ShyValue::Scalar(ShyScalar::Rational(s.parse::<f64>().unwrap())),
             ParserToken::StringLiteral(s) => ShyValue::Scalar(ShyScalar::String(s)),
+            // TODO: A special ShyScalar::Regex.
+            ParserToken::Regex(s) => ShyValue::Scalar(ShyScalar::String(s)),
             _ => ShyValue::Scalar(ShyScalar::Error(format!("Error parsing token '{}'", parser_token)))
         }
     }

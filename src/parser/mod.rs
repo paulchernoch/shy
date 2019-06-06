@@ -300,6 +300,22 @@ mod tests {
         ]);
     }
 
+    #[test]
+    fn string_match() {
+        compile_test_case(
+            r#"name ~ /^Paul/ && color == "blue""#, 
+            vec![
+            ShyToken::Value(ShyValue::Variable("name".to_string())),
+            // TODO: Implement ShyScalar::Regex
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::String("^Paul".to_string()))),
+            ShyToken::Operator(ShyOperator::Match),
+            ShyToken::Value(ShyValue::Variable("color".to_string())),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::String("blue".to_string()))),
+            ShyToken::Operator(ShyOperator::Equals),
+            ShyToken::Operator(ShyOperator::And),
+        ]);
+    }
+
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
         let mut shy: ShuntingYard = expression.into();
         match shy.compile() {
