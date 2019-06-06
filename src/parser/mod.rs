@@ -287,6 +287,19 @@ mod tests {
         ]);
     }
 
+    #[test]
+    /// Verify that logical not (a prefix operator) is handled properly when parenthesized.
+    fn logical_not_parenthesized() {
+        compile_test_case(
+            "!(a || b)", 
+            vec![
+            ShyToken::Value(ShyValue::Variable("a".to_string())),
+            ShyToken::Value(ShyValue::Variable("b".to_string())),
+            ShyToken::Operator(ShyOperator::Or),
+            ShyToken::Operator(ShyOperator::LogicalNot),
+        ]);
+    }
+
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
         let mut shy: ShuntingYard = expression.into();
         match shy.compile() {
