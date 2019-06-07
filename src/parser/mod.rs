@@ -87,7 +87,9 @@ impl<'a> ShuntingYard<'a> {
 
     /// Perform the Shunting yard algorithm.
     fn shunt(&mut self) -> std::result::Result<usize,String> {
-        for stoken in self.infix_order.iter() {
+        // Need to clone infix_order to placate the borrow-checker, otherwise I cannot call the reduce method.
+        let infix_order_copy = self.infix_order.clone();
+        for stoken in infix_order_copy.iter() {
             match stoken {
                 // Value Rule: Values are immediately copied to the postfix-ordered output stack.
                 ShyToken::Value(_) => self.postfix_order.push(stoken.clone()),
@@ -116,51 +118,29 @@ impl<'a> ShuntingYard<'a> {
 
                 // TODO: Handle Load / Store of variables.
 
-                // Operator handling depends upon:
-                //    - precedence
-                //    - associativity
-                //    - unary operators
+                // Precedence & Associativity Rules:
                 ShyToken::Operator(op) => {
-                    loop {
-                        match self.operator_stack.last() {
-                            Some(ShyOperator::OpenParenthesis) | Some(ShyOperator::CloseParenthesis) => break,
-
-                            // Higher Precedence Rule: Operator on operator stack has higher precedence than current operator, 
-                            //                         so pop operator stack and push that operator onto the postfix-ordered output stack
-                            //                         before pushing the current operator onto the operator stack.
-                            Some(higher_precedence_op) if higher_precedence_op.precedence() > op.precedence()  => {
-                                self.postfix_order.push(ShyToken::Operator(higher_precedence_op.clone()));
-                                self.operator_stack.pop();
-                                ()
-                            },
-                            // Lower Precedence Rule:  Operator on operator stack has lower precedence than current operator, 
-                            //                         so stop popping off operators.  
-                            Some(lower_precedence_op) if lower_precedence_op.precedence() < op.precedence()  => {
-                                break;
-                            },
-                            // Left Associative Rule:  Operators have same precedence, and operator on stack has left associativity,
-                            //                         so pop operator stack and push it onto postfix-ordered output stack.
-                            Some(equal_precedence_op) if equal_precedence_op.precedence() == op.precedence() 
-                                                         && equal_precedence_op.associativity() == Associativity::Left  => {
-                                self.postfix_order.push(ShyToken::Operator(*equal_precedence_op));
-                                self.operator_stack.pop();
-                                ()
-                            },
-                            // Right Associative Rule: Operators have same precedence, and operator on stack has right associativity,
-                            //                         so stop popping off operators.
-                            _ => break
-                         }
-                    }
+                    self.reduce(op.clone());
                     self.operator_stack.push(*op)
                 },
                 
                 // Function Rule: Functions call for an operator to be pushed on the operator stack and a value (the function name)
                 //                to be pushed on the postfix-ordered output stack.
-                //                Assume that the operator is a ShyOperator::FunctionCall and the value is a ShyValue::FunctionName.
-                ShyToken::OperatorWithValue(op, value) => {
+                //                Assume that the value is a ShyValue::FunctionName.
+                ShyToken::OperatorWithValue(ShyOperator::FunctionCall, value) => {
                     self.postfix_order.push(ShyToken::Value(value.clone()));
-                    self.operator_stack.push(*op)
+                    self.operator_stack.push(ShyOperator::FunctionCall)
                 },
+
+                // Power Rule: Power operations call for an exponentiation operator to be pushed on the operator stack and a value (the exponent)
+                //             to be pushed on the postfix-ordered output stack.
+                //             Assume that the value is a ShyValue::Integer.
+                ShyToken::OperatorWithValue(ShyOperator::Exponentiation, value) => {
+                    self.reduce(ShyOperator::Exponentiation);
+                    self.postfix_order.push(ShyToken::Value(value.clone()));
+                    self.operator_stack.push(ShyOperator::Exponentiation)
+                },
+                
                 // This is an error case that should not occur currently.
                 // Once when we support shortcut operators for and (&&) and or (||),
                 // an error in a branch not taken should be overlooked, so defer to the evaluation of the expression.
@@ -178,6 +158,41 @@ impl<'a> ShuntingYard<'a> {
             }
         }
         Ok(self.postfix_order.len())
+    }
+
+    /// Apply the rules for precedence and associativity to reduce the operator_stack
+    /// by moving some operators to the postfix_order stack.
+    fn reduce(&mut self, op: ShyOperator) {
+        loop {
+            match self.operator_stack.last() {
+                Some(ShyOperator::OpenParenthesis) | Some(ShyOperator::CloseParenthesis) => break,
+
+                // Higher Precedence Rule: Operator on operator stack has higher precedence than current operator, 
+                //                         so pop operator stack and push that operator onto the postfix-ordered output stack
+                //                         before pushing the current operator onto the operator stack.
+                Some(higher_precedence_op) if higher_precedence_op.precedence() > op.precedence()  => {
+                    self.postfix_order.push(ShyToken::Operator(higher_precedence_op.clone()));
+                    self.operator_stack.pop();
+                    ()
+                },
+                // Lower Precedence Rule:  Operator on operator stack has lower precedence than current operator, 
+                //                         so stop popping off operators.  
+                Some(lower_precedence_op) if lower_precedence_op.precedence() < op.precedence()  => {
+                    break;
+                },
+                // Left Associative Rule:  Operators have same precedence, and operator on stack has left associativity,
+                //                         so pop operator stack and push it onto postfix-ordered output stack.
+                Some(equal_precedence_op) if equal_precedence_op.precedence() == op.precedence() 
+                                              && equal_precedence_op.associativity() == Associativity::Left  => {
+                    self.postfix_order.push(ShyToken::Operator(*equal_precedence_op));
+                    self.operator_stack.pop();
+                    ()
+                },
+                // Right Associative Rule: Operators have same precedence, and operator on stack has right associativity,
+                //                         so stop popping off operators.
+                _ => break
+            }
+        }
     }
 
     pub fn compile(&mut self) -> std::result::Result<usize,String> {
@@ -329,6 +344,37 @@ mod tests {
             ShyToken::Operator(ShyOperator::Divide),
             ShyToken::Operator(ShyOperator::FunctionCall),
             ShyToken::Operator(ShyOperator::Add),
+        ]);
+    }
+
+    #[test]
+    /// Verify that raising a value to a power has the correct precedence and associativity.
+    fn power() {
+        compile_test_case(
+            "3*2¹⁰/5", 
+            vec![
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(3))),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(2))),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(10))),
+            ShyToken::Operator(ShyOperator::Exponentiation),
+            ShyToken::Operator(ShyOperator::Multiply),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(5))),
+            ShyToken::Operator(ShyOperator::Divide),
+        ]);
+    }
+
+    #[test]
+    /// Verify that raising a value to a power has the correct precedence and associativity.
+    fn square_root() {
+        compile_test_case(
+            "3*√2/5", 
+            vec![
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(3))),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(2))),
+            ShyToken::Operator(ShyOperator::SquareRoot),
+            ShyToken::Operator(ShyOperator::Multiply),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(5))),
+            ShyToken::Operator(ShyOperator::Divide),
         ]);
     }
 

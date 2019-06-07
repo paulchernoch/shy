@@ -63,6 +63,7 @@ pub enum ParserToken {
     RelationalOp(String), // < <= ≤ > >= ≥ != ≠
     EqualityOp(String), // ==
     LogicalOp(String), // && ||
+    SquareRootOp, // √
     Error(LexerError)
 }
 
@@ -98,6 +99,7 @@ impl ParserToken {
             ParserToken::RelationalOp(_) => "RelationalOp",
             ParserToken::EqualityOp(_) => "EqualityOp",
             ParserToken::LogicalOp(_) => "LogicalOp", 
+            ParserToken::SquareRootOp => "SquareRootOp", 
             ParserToken::Error(_) => "Error", 
         }
     }
@@ -134,6 +136,7 @@ impl ParserToken {
             ParserToken::RelationalOp(s) => s,
             ParserToken::EqualityOp(s) => s,
             ParserToken::LogicalOp(s) => s,
+            ParserToken::SquareRootOp => "√",
             ParserToken::Error(err) => {
                 error_message = format!("Error!\nLine {}, position {}, Log:\n{}", err.error_line, err.error_position, err.log);
                 &error_message
@@ -141,46 +144,6 @@ impl ParserToken {
 
         };
         return_val.to_string()
-    }
-    /// Operator precedence, where the higher the number the higher the precedence.
-    /// This follows C# precedence rules. 
-    /// For the operators not used in C#, follow Perl for exponentiation and match.
-    /// Give factorial operators a fairly high precedence.
-    /// Tokens that do not represent operators (like StringLiteral and Identifier) are assigned precedence of one, and Error is zero..
-    pub fn precedence(&self) -> u8  {
-        match self {
-            ParserToken::Semicolon => 14,
-            ParserToken::OpenParenthesis => 13,
-            ParserToken::CloseParenthesis => 13,
-            ParserToken::Comma => 13,
-            ParserToken::OpenBracket => 13,
-            ParserToken::CloseBracket => 13,
-            ParserToken::MemberOp => 13,
-            ParserToken::SignOp(_) => 12,
-            ParserToken::IncrementDecrementOp(_) => 12,
-            ParserToken::FactorialOp => 12,
-            ParserToken::LogicalNotOp => 12,
-            ParserToken::PowerOp(_) => 12,
-            ParserToken::ExponentiationOp => 11,
-            ParserToken::MatchOp(_) => 10,
-            ParserToken::MultiplicativeOp(_) => 9,
-            ParserToken::AdditiveOp(_) => 8,
-            ParserToken::RelationalOp(_) => 7,
-            ParserToken::EqualityOp(_) => 6,
-            ParserToken::LogicalOp(ref s) if *s == "&&" => 5, 
-            ParserToken::LogicalOp(ref s) if *s == "||"  => 4, 
-            ParserToken::QuestionMark => 3,
-            ParserToken::Colon => 3,
-            ParserToken::AssignmentOp(_) => 2,
-            ParserToken::Integer(_) => 1,
-            ParserToken::Rational(_) => 1,
-            ParserToken::Regex(_) => 1,
-            ParserToken::StringLiteral(_) => 1,
-            ParserToken::Identifier(_) => 1,
-            ParserToken::Function(_) => 1,
-            ParserToken::Error(_) => 0, 
-            _ => 0
-        }
     }
 }
 
@@ -474,6 +437,7 @@ impl<'e> Lexer<'e> {
             LexerEvent::ExpressionEnder(':') => self.reenter_with_yield(ParserToken::Colon),
             LexerEvent::Caret => self.reenter_with_yield(ParserToken::ExponentiationOp),
             LexerEvent::Comparison(relop) => self.reenter_with_yield(ParserToken::RelationalOp(relop.to_string())),
+            LexerEvent::SquareRoot => self.reenter_with_yield(ParserToken::SquareRootOp),
 
             // A period can dereference a property (e.g. person.name) or begin a degenerate number (e.g. .5)
             LexerEvent::Period => if self.does_next_token_match_filter(
@@ -513,7 +477,7 @@ impl<'e> Lexer<'e> {
             LexerEvent::Digit(_) => self.transition_with_push(LexerState::IntegerDigits, e),
 
             // Superscripts begin a number with no leading sign, but cause an exponentiation operator to be inserted
-            LexerEvent::Superscript(_) => self.transition_with_push(LexerState::Power, e),
+            LexerEvent::Superscript(c) => self.transition_with_push(LexerState::Power, LexerEvent::Digit(Lexer::superscript_to_digit(c))),
 
             // Exclamation point may be prefix (logical not or not match) or suffix (factorial)
             LexerEvent::ExclamationPoint => self.transition_with_push(LexerState::Exclamation, e),
@@ -527,6 +491,24 @@ impl<'e> Lexer<'e> {
             _ => self.transition_to_error(e)
         }
     }
+
+    /// Convert a superscripted digit to a normal digit, but leave unchanged all other characters.
+    fn superscript_to_digit(c: char) -> char {
+        match c {
+            '¹' => '1',
+            '²' => '2',
+            '³' => '3',
+            '⁴' => '4', 
+            '⁵' => '5',
+            '⁶' => '6',
+            '⁷' => '7',
+            '⁸' => '8',
+            '⁹' => '9',
+            '⁰' => '0',
+            _ => c
+        }
+    }
+
     /// String state transitions, part of building a string literal.
     fn string(&mut self, e: LexerEvent) -> Option<ParserToken> {
         match e {
@@ -709,7 +691,7 @@ impl<'e> Lexer<'e> {
     fn power(&mut self, e: LexerEvent) -> Option<ParserToken> {
         match e {
             // Continue building the PowerOp.
-            LexerEvent::Superscript(_) => self.reenter_with_push(e),
+            LexerEvent::Superscript(c) => self.reenter_with_push(LexerEvent::Digit(Lexer::superscript_to_digit(c))),
 
             // Went too far - finish up and put the non-superscript character back. 
             _ => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::PowerOp(s)), e)
@@ -1001,10 +983,10 @@ mod tests {
             "15³ - 2¹⁰", 
             vec![
                 ParserToken::Integer("15".to_string()),
-                ParserToken::PowerOp("³".to_string()),
+                ParserToken::PowerOp("3".to_string()),
                 ParserToken::AdditiveOp("-".to_string()),
                 ParserToken::Integer("2".to_string()),
-                ParserToken::PowerOp("¹⁰".to_string()),
+                ParserToken::PowerOp("10".to_string()),
             ]
         );
     }

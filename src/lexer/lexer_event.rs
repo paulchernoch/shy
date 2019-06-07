@@ -41,6 +41,7 @@ pub enum LexerEvent {
     AngleBracket(char), // < >
     AmpersandBar(char), // & |
     Tilde,
+    SquareRoot, // √
     Other(char)
 }
 
@@ -70,6 +71,7 @@ impl LexerEvent {
             '≤' | '≥' | '≠' => LexerEvent::Comparison(c),   
             '&' | '|'  => LexerEvent::AmpersandBar(c),
             '~'  => LexerEvent::Tilde,
+            '√'  => LexerEvent::SquareRoot,
             _ => LexerEvent::Other(c)
         }
     }
@@ -102,6 +104,7 @@ impl Display for LexerEvent {
             LexerEvent::Comparison(cmp) => _ctos(*cmp),
             LexerEvent::AmpersandBar(ab) => _ctos(*ab),
             LexerEvent::Tilde => _ctos('~'),
+            LexerEvent::SquareRoot => _ctos('√'),
             LexerEvent::Other(o) => _ctos(*o)
         }
     }
@@ -242,6 +245,7 @@ mod tests {
         assert_eq!(LexerEvent::Tilde.to_string(), "~");
         assert_eq!(LexerEvent::Backslash.to_string(), "\\");
         assert_eq!(LexerEvent::Digit('4').to_string(), "4");
+        assert_eq!(LexerEvent::SquareRoot.to_string(), "√");
     }
 
     #[test]

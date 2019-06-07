@@ -60,6 +60,7 @@ custom_derive! {
         PostIncrement,
         PostDecrement,
         Factorial,
+        SquareRoot,
         LogicalNot,
         Power,
         Exponentiation,
@@ -98,24 +99,25 @@ impl ShyOperator {
 
     pub fn precedence(&self) -> u8  {
         match self {
-            ShyOperator::Load => 16,
-            ShyOperator::Store => 16,
-            ShyOperator::Semicolon => 15,
-            ShyOperator::FunctionCall => 14,
-            ShyOperator::OpenParenthesis => 13,
-            ShyOperator::CloseParenthesis => 13,
-            ShyOperator::Comma => 13,
-            ShyOperator::OpenBracket => 13,
-            ShyOperator::CloseBracket => 13,
-            ShyOperator::Member => 13,
+            ShyOperator::Load => 17,
+            ShyOperator::Store => 17,
+            ShyOperator::Semicolon => 16,
+            ShyOperator::FunctionCall => 15,
+            ShyOperator::OpenParenthesis => 14,
+            ShyOperator::CloseParenthesis => 14,
+            ShyOperator::Comma => 14,
+            ShyOperator::OpenBracket => 14,
+            ShyOperator::CloseBracket => 14,
+            ShyOperator::Member => 14,
+            ShyOperator::Power => 13,
+            ShyOperator::Exponentiation => 13,
             ShyOperator::PrefixPlusSign => 12,
             ShyOperator::PrefixMinusSign => 12,
             ShyOperator::PostIncrement => 12,
             ShyOperator::PostDecrement => 12,
-            ShyOperator::Factorial => 12,
+            ShyOperator::SquareRoot => 12,
             ShyOperator::LogicalNot => 12,
-            ShyOperator::Power => 12,
-            ShyOperator::Exponentiation => 11,
+            ShyOperator::Factorial => 11,
             ShyOperator::Match => 10,
             ShyOperator::NotMatch => 10,
             ShyOperator::Multiply => 9,
@@ -155,6 +157,8 @@ impl ShyOperator {
             ShyOperator::ModAssign => Associativity::Right,
             ShyOperator::AndAssign => Associativity::Right,
             ShyOperator::OrAssign => Associativity::Right,
+            ShyOperator::Exponentiation => Associativity::Right,
+            ShyOperator::Power => Associativity::Right,
             _ => Associativity::Left
         }
     }
@@ -179,6 +183,7 @@ impl From<ParserToken> for ShyOperator {
 
             ParserToken::FactorialOp => ShyOperator::Factorial,
             ParserToken::LogicalNotOp => ShyOperator::LogicalNot,
+            ParserToken::SquareRootOp => ShyOperator::SquareRoot,
             ParserToken::PowerOp(_) => ShyOperator::Power, // Parse must translate into two tokens, an exponentiation and an operand
             ParserToken::ExponentiationOp => ShyOperator::Exponentiation,
 
@@ -271,7 +276,11 @@ impl<'a> From<ParserToken> for ShyValue<'a> {
             ParserToken::Integer(s) => ShyValue::Scalar(ShyScalar::Integer(s.parse::<i64>().unwrap())),
             ParserToken::Rational(s) => ShyValue::Scalar(ShyScalar::Rational(s.parse::<f64>().unwrap())),
             ParserToken::StringLiteral(s) => ShyValue::Scalar(ShyScalar::String(s)),
-            // TODO: A special ShyScalar::Regex.
+
+            // Two tokens will be made from a PowerOp, an operator and this scalar value
+            ParserToken::PowerOp(s) => ShyValue::Scalar(ShyScalar::Integer(s.parse::<i64>().unwrap())),
+
+            // TODO: Create ShyScalar::Regex to use in place of String.
             ParserToken::Regex(s) => ShyValue::Scalar(ShyScalar::String(s)),
             _ => ShyValue::Scalar(ShyScalar::Error(format!("Error parsing token '{}'", parser_token)))
         }
@@ -283,7 +292,7 @@ impl<'a> From<ParserToken> for ShyValue<'a> {
 /// ShyToken represents the tokens on the Output stack of the Shunting Yard Algorithm.
 ///   - The Value and Operator variants will appear on the Output stack. 
 ///   - The None value is for error processing.
-///   - The OperatorWithValue (used only for Functions) will be split into 
+///   - The OperatorWithValue (used for Functions and Power) will be split into 
 ///     a Value token (the Function name) and an Operator token (the function invocation).
 #[derive(Clone, PartialEq, Debug)]
 pub enum ShyToken<'a> {
@@ -315,6 +324,13 @@ impl<'a> From<ParserToken> for ShyToken<'a> {
                 let val: ShyValue = parser_token.into();
                 ShyToken::OperatorWithValue(ShyOperator::FunctionCall, val)
             },
+            // A Power will become two tokens, Exponentiation and the numeric value of the exponent
+            ShyOperator::Power => {
+                let val: ShyValue = parser_token.into();
+                ShyToken::OperatorWithValue(ShyOperator::Exponentiation, val)
+            }
+
+
             ShyOperator::Error => ShyToken::Error,
             _ => ShyToken::Operator(op)
         }
