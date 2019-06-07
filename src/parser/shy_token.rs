@@ -330,7 +330,6 @@ impl<'a> From<ParserToken> for ShyToken<'a> {
                 ShyToken::OperatorWithValue(ShyOperator::Exponentiation, val)
             }
 
-
             ShyOperator::Error => ShyToken::Error,
             _ => ShyToken::Operator(op)
         }

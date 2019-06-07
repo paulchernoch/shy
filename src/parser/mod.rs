@@ -195,9 +195,11 @@ impl<'a> ShuntingYard<'a> {
         }
     }
 
+    /// Compile the expression into a postfix ordered series of tokens.
     pub fn compile(&mut self) -> std::result::Result<usize,String> {
         match self.parse() {
             Ok(token_count) => {
+                // TODO: Optimizations like constant folding, And/Or operator short-cutting, branching.
                 Ok(token_count)
             },
             Err(s) => Err(s)

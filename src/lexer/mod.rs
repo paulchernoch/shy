@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::mem;
-use std::mem::discriminant;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result;
@@ -203,31 +202,21 @@ impl<'e> Lexer<'e> {
     // Status related
 
 
-    pub fn has_reached_goal(&mut self) -> bool { 
-        discriminant(&LexerState::Goal) == discriminant(&self.current_state)  
-    }
+    pub fn has_reached_goal(&mut self) -> bool { self.current_state == LexerState::Goal }
 
-    pub fn has_error(&mut self) -> bool { 
-        discriminant(&LexerState::Error) == discriminant(&self.current_state)  
-    }
+    pub fn has_error(&mut self) -> bool { self.current_state == LexerState::Error }
 
     //..................................................................
 
     // Stack manipulation
 
     /// Push the character that the LexerEvent represents onto the end of the next_token.
-    fn push(&mut self, e: LexerEvent) {
-        self.next_token.push_str(&e.to_string())
-    }
+    fn push(&mut self, e: LexerEvent) { self.next_token.push_str(&e.to_string()) }
 
-    fn push_char(&mut self, c: char) {
-        self.next_token.push_str(&c.to_string())
-    }
+    fn push_char(&mut self, c: char) { self.next_token.push_str(&c.to_string()) }
 
-     /// Return the current value of next_token, simultaneously storing a new empty string as next_token.
-    fn yield_string(&mut self) -> String {
-        mem::replace(&mut self.next_token, String::new())
-    }
+    /// Return the current value of next_token, simultaneously storing a new empty string as next_token.
+    fn yield_string(&mut self) -> String { mem::replace(&mut self.next_token, String::new()) }
 
     //..................................................................
 
@@ -339,9 +328,7 @@ impl<'e> Lexer<'e> {
     }
 
     /// Reenter the same state, discard the character read from the expression, and do not yield a ParserToken.
-    fn reenter_without_yield(&mut self) -> Option<ParserToken> {
-        None // not an error
-    }
+    fn reenter_without_yield(&mut self) -> Option<ParserToken> { None } // not an error
 
     /// Reenter the same state, push the string form of the given event onto the stack, and do not yield a ParserToken. 
     fn reenter_with_push(&mut self, event_to_push: LexerEvent) -> Option<ParserToken>  {

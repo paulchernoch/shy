@@ -18,7 +18,10 @@ use std::convert::From;
 /// with a series of events to form a parser token.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum LexerEvent {
+    /// Beginning of String (auto-generated)
     BOS,
+
+    /// End of String (auto-generated)
     EOS,
     Space,
     Newline,
@@ -188,13 +191,9 @@ impl<'e> LexerEventIterator<'e> {
         }
     }
 
-    pub fn current_position(&mut self) -> i32 {
-        self.position
-    }
+    pub fn current_position(&mut self) -> i32 { self.position }
 
-    pub fn current_line(&mut self) -> i32 {
-        self.line
-    }
+    pub fn current_line(&mut self) -> i32 { self.line }
 }
 
 impl<'e> Iterator for LexerEventIterator<'e> {
