@@ -2,6 +2,8 @@
 
 #[allow(unused_imports)]
 use std::fmt::Result;
+use std::collections::HashMap;
+use std::f64;
 use crate::lexer::ParserToken;
 use crate::lexer::Lexer;
 
@@ -196,18 +198,140 @@ impl<'a> ShuntingYard<'a> {
     }
 
     /// Compile the expression into a postfix ordered series of tokens.
-    pub fn compile(&mut self) -> std::result::Result<usize,String> {
+    pub fn compile(mut self) -> std::result::Result<Expression<'a>,String> {
         match self.parse() {
-            Ok(token_count) => {
+            Ok(_) => {
                 // TODO: Optimizations like constant folding, And/Or operator short-cutting, branching.
-                Ok(token_count)
+                Ok(Expression { 
+                    expression_source: self.expression_source.clone(),
+                    postfix_order: self.postfix_order.clone()
+                })
             },
-            Err(s) => Err(s)
+            Err(s) => Err(format!("{}\n{:?}", s, self))
         }
     }
 
-    // TODO: Implement execute method.
+
 }
+
+//..................................................................
+
+
+
+pub struct ExecutionContext<'a> {
+    pub variables: HashMap<String, ShyValue<'a>>,
+
+    functions: HashMap<String, ShyFunction<'a>>
+}
+
+type ShyFunction<'a> = Box<(FnMut(&'a mut ShyValue<'a>) -> ShyValue<'a> + 'a)>;
+
+type Ctx<'a> = ExecutionContext<'a>;
+
+impl<'a> ExecutionContext<'a> {
+
+    pub fn shy_func<F>(f: F) -> ShyFunction<'a>
+        where F: FnMut(&'a mut ShyValue<'a>) -> ShyValue<'a> + 'a {
+            Box::new(f) as ShyFunction
+    }
+
+    /// Define a context function that assumes the argument is a float or integer or a vector
+    /// that holds a single float or integer and returns a double.
+    pub fn shy_double_func<G>(g: G) -> ShyFunction<'a>
+        where G: Fn(f64) -> f64 + 'a {
+            Ctx::shy_func(move |v| match v {
+                ShyValue::Scalar(ShyScalar::Rational(x)) => Ctx::double(g(*x)),
+                ShyValue::Scalar(ShyScalar::Integer(i)) => Ctx::double(g(*i as f64)),
+                ShyValue::Vector(vect) if vect.len() == 1 => match vect[0] {
+                    ShyScalar::Rational(x) => Ctx::double(g(x)),
+                    ShyScalar::Integer(i) => Ctx::double(g(i as f64)),
+                    _ => Ctx::double(f64::NAN)
+                },
+                _ => Ctx::double(f64::NAN)
+            })
+    }
+
+    pub fn double(x: f64) -> ShyValue<'a> {
+        ShyValue::Scalar(ShyScalar::Rational(x))
+    }
+
+    fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
+        let mut map = HashMap::new();
+        map.insert("abs".to_string(), Ctx::shy_double_func(|x| x.abs()));
+        map.insert("acos".to_string(), Ctx::shy_double_func(|x| x.acos()));
+        map.insert("asin".to_string(), Ctx::shy_double_func(|x| x.asin()));
+        map.insert("atan".to_string(), Ctx::shy_double_func(|x| x.atan()));
+        map.insert("cos".to_string(), Ctx::shy_double_func(|x| x.cos()));
+        map.insert("exp".to_string(), Ctx::shy_double_func(|x| x.exp()));
+        map.insert("ln".to_string(), Ctx::shy_double_func(|x| x.ln()));
+        map.insert("sin".to_string(), Ctx::shy_double_func(|x| x.sin()));
+        map.insert("sqrt".to_string(), Ctx::shy_double_func(|x| x.sqrt()));
+        map.insert("tan".to_string(), Ctx::shy_double_func(|x| x.tan()));
+        map
+    }
+
+    fn standard_variables() ->  HashMap<String, ShyValue<'a>> {
+        let mut map = HashMap::new();
+        map.insert("PI".to_string(), Ctx::double(f64::consts::PI));
+        map.insert("π".to_string(), Ctx::double(f64::consts::PI));
+        map.insert("e".to_string(), Ctx::double(f64::consts::E));
+        map.insert("φ".to_string(), Ctx::double( (1.0 + 5_f64.sqrt())/2.0 ));
+        map.insert("PHI".to_string(), Ctx::double( (1.0 + 5_f64.sqrt())/2.0 ));
+        map
+    }
+
+    pub fn new(mut vars: HashMap<String, ShyValue<'a>>, mut funcs: HashMap<String, ShyFunction<'a>>) -> Self {
+        vars.extend(ExecutionContext::standard_variables());
+        funcs.extend(ExecutionContext::standard_functions());
+        ExecutionContext {
+            variables: vars,
+            functions: funcs
+        }
+    }
+
+    /// Create a default context that only defines math functions and constants.
+    pub fn default() -> Self {
+        ExecutionContext {
+            variables: ExecutionContext::standard_variables(),
+            functions: ExecutionContext::standard_functions()
+        }
+    }    
+
+    /// Store a new value for the variable in the context.
+    pub fn store(&mut self, name: &String, val: ShyValue<'a>) {
+        self.variables.insert(name.clone(), val);
+    }
+
+    /// Retrieve the current value of the variable from the context, or an Error.
+    pub fn load(&self, name: &String) -> ShyValue<'a> {
+        match self.variables.get(name) {
+            Some(val) => val.clone(),
+            None => ShyValue::Scalar(ShyScalar::Error(format!("Name {} not found in context", name)))
+        }
+    }
+}
+
+impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
+    /// Create an ExecutionContext from a simple map of string-float pairs.
+    fn from(initial_values: &HashMap<String,f64>) -> Self {
+        let mut context = ExecutionContext::default();
+        for (key, value) in &*initial_values {
+            context.variables.insert(key.clone(), Ctx::double(*value));
+        }
+        context
+    }
+}
+
+//..................................................................
+
+#[derive(Debug)]
+pub struct Expression<'a> {
+    pub expression_source: String,
+
+    pub postfix_order: Vec<ShyToken<'a>>
+}
+
+    // TODO: Implement execute method.
 
 //..................................................................
 
@@ -267,7 +391,7 @@ mod tests {
     #[test]
     /// Verify that an error with too many closing parentheses is generated.
     fn unbalanced_closing_parentheses() {
-        let mut shy: ShuntingYard = "(2 + 3) * (4 - 5))".into();
+        let shy: ShuntingYard = "(2 + 3) * (4 - 5))".into();
         match shy.compile() {
             Err(msg) => assert_that(&msg).contains("Unbalanced"),
             _ => assert!(false, "Did not return error")
@@ -277,7 +401,7 @@ mod tests {
     #[test]
     /// Verify that an error with too many opening parentheses is generated.
     fn unbalanced_opening_parentheses() {
-        let mut shy: ShuntingYard = "((2 + 3) * (4 - 5)".into();
+        let shy: ShuntingYard = "((2 + 3) * (4 - 5)".into();
         match shy.compile() {
             Err(msg) => assert_that(&msg).contains("Unbalanced"),
             _ => assert!(false, "Did not return error")
@@ -381,20 +505,19 @@ mod tests {
     }
 
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
-        let mut shy: ShuntingYard = expression.into();
+        let shy: ShuntingYard = expression.into();
         match shy.compile() {
-            Ok(token_count) => {
-                if token_count != expected_tokens.len() {
-                    println!("Shy:\n{:?}", shy);
+            Ok(expr) => {
+                if expr.postfix_order.len() != expected_tokens.len() {
+                    println!("Expression:\n{:?}", expr);
                 }
-                assert_that!(token_count).is_equal_to(expected_tokens.len())
+                assert_that!(expr.postfix_order.len()).is_equal_to(expected_tokens.len());
+                assert!(expected_tokens.iter().eq(expr.postfix_order.iter()), )
             },
             Err(msg) => {
-                println!("Shy:\n{:?}", shy);
                 assert!(false, format!("Error compiling: {}", msg))
             }
         }
-        assert!(expected_tokens.iter().eq(shy.postfix_order.iter()), );
     }
 
 
