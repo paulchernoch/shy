@@ -337,6 +337,7 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
 
 //..................................................................
 
+/// Compiled Expression that can be executed.
 #[derive(Debug)]
 pub struct Expression<'a> {
     pub expression_source: String,
@@ -344,7 +345,72 @@ pub struct Expression<'a> {
     pub postfix_order: Vec<ShyToken<'a>>
 }
 
-    // TODO: Implement execute method.
+impl<'a> Expression<'a> {
+    pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue<'a>,String> {
+        let mut output_stack : Vec<ShyValue<'a>> = vec![];
+        for token in self.postfix_order.iter().cloned() {
+            match token {
+                ShyToken::Value(value) => output_stack.push(value),
+                ShyToken::Operator(op) => Self::operate(&mut output_stack, op, context),
+                _ => output_stack.push(ShyValue::error("Invalid token in expression".to_string()))
+            }
+        }
+        match output_stack.pop() {
+            Some(value) => Ok(value),
+            None => Err("Expression stack is empty".to_string())
+        }
+    }
+
+    /// Apply an operator, removing tokens from the stack, computing a result, and pushing the result back on the stack.
+    fn operate(output_stack: &mut Vec<ShyValue<'a>>, op: ShyOperator, context: &mut ExecutionContext<'a>) {
+        match op {
+            ShyOperator::Load => (),
+            ShyOperator::Store => (),
+            ShyOperator::Semicolon => (),
+            ShyOperator::FunctionCall => (),
+            ShyOperator::OpenParenthesis => (),
+            ShyOperator::CloseParenthesis => (),
+            ShyOperator::Comma => (),
+            ShyOperator::OpenBracket => (),
+            ShyOperator::CloseBracket => (),
+            ShyOperator::Member => (),
+            ShyOperator::Power => (),
+            ShyOperator::Exponentiation => (),
+            ShyOperator::PrefixPlusSign => (),
+            ShyOperator::PrefixMinusSign => (),
+            ShyOperator::PostIncrement => (),
+            ShyOperator::PostDecrement => (),
+            ShyOperator::SquareRoot => (),
+            ShyOperator::LogicalNot => (),
+            ShyOperator::Factorial => (),
+            ShyOperator::Match => (),
+            ShyOperator::NotMatch => (),
+            ShyOperator::Multiply => (),
+            ShyOperator::Divide => (),
+            ShyOperator::Mod => (),
+            ShyOperator::Add => (),
+            ShyOperator::Subtract => (),
+            ShyOperator::LessThan => (),
+            ShyOperator::LessThanOrEqualTo => (),
+            ShyOperator::GreaterThan => (),
+            ShyOperator::GreaterThanOrEqualTo => (),
+            ShyOperator::Equals => (),
+            ShyOperator::NotEquals => (),
+            ShyOperator::And => (), 
+            ShyOperator::Or => (), 
+            ShyOperator::Ternary => (),
+            ShyOperator::Assign => (),
+            ShyOperator::PlusAssign => (),
+            ShyOperator::MinusAssign => (),
+            ShyOperator::MultiplyAssign => (),
+            ShyOperator::DivideAssign => (),
+            ShyOperator::ModAssign => (),
+            ShyOperator::AndAssign => (),
+            ShyOperator::OrAssign => (),
+            _ => panic!("Invalid operator {:?}", op),
+        }
+    }
+}
 
 //..................................................................
 
