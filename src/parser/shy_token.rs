@@ -282,10 +282,37 @@ impl<'a> From<ParserToken> for ShyValue<'a> {
 
             // TODO: Create ShyScalar::Regex to use in place of String.
             ParserToken::Regex(s) => ShyValue::Scalar(ShyScalar::String(s)),
-            _ => ShyValue::Scalar(ShyScalar::Error(format!("Error parsing token '{}'", parser_token)))
+            _ => ShyValue::error(format!("Error parsing token '{}'", parser_token))
         }
     }
 }
+
+impl<'a> ShyValue<'a> {
+    pub fn error(message: String) -> Self {
+        ShyValue::Scalar(ShyScalar::Error(message))
+    }
+
+    pub fn is_error(&self) -> bool {
+        match self {
+            ShyValue::Scalar(ShyScalar::Error(_)) => true,
+            _ => false
+        }
+    }
+}
+
+// Conversions from basic types to ShyValue
+
+impl<'a> From<f64> for ShyValue<'a> { fn from(x: f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(x)) } }
+impl<'a> From<&f64> for ShyValue<'a> { fn from(x: &f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(*x)) } }
+impl<'a> From<i64> for ShyValue<'a> { fn from(x: i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(x)) } }
+impl<'a> From<&i64> for ShyValue<'a> { fn from(x: &i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x)) } }
+impl<'a> From<i32> for ShyValue<'a> { fn from(x: i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(x as i64)) } }
+impl<'a> From<&i32> for ShyValue<'a> { fn from(x: &i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x as i64)) } }
+impl<'a> From<bool> for ShyValue<'a> { fn from(x: bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(x)) } }
+impl<'a> From<&bool> for ShyValue<'a> { fn from(x: &bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(*x)) } }
+impl<'a> From<String> for ShyValue<'a> { fn from(s: String) -> Self { ShyValue::Scalar(ShyScalar::String(s.clone())) } }
+impl<'a> From<&str> for ShyValue<'a> { fn from(s: &str) -> Self { ShyValue::Scalar(ShyScalar::String(s.to_string())) } }
+
 
 //..................................................................
 

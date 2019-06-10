@@ -217,21 +217,24 @@ impl<'a> ShuntingYard<'a> {
 //..................................................................
 
 
-
+/// ExecutionContext holds variables and functions needed when executing expressions.
+///   - Some variables are loaded for use in the formulas.
+///   - Some variables are used to store the results of formulas after execution. 
+///   - The functions may be called in the expressions.
 pub struct ExecutionContext<'a> {
     pub variables: HashMap<String, ShyValue<'a>>,
 
     functions: HashMap<String, ShyFunction<'a>>
 }
 
-type ShyFunction<'a> = Box<(FnMut(&'a mut ShyValue<'a>) -> ShyValue<'a> + 'a)>;
+type ShyFunction<'a> = Box<(Fn(ShyValue<'a>) -> ShyValue<'a> + 'a)>;
 
 type Ctx<'a> = ExecutionContext<'a>;
 
 impl<'a> ExecutionContext<'a> {
 
     pub fn shy_func<F>(f: F) -> ShyFunction<'a>
-        where F: FnMut(&'a mut ShyValue<'a>) -> ShyValue<'a> + 'a {
+        where F: Fn(ShyValue<'a>) -> ShyValue<'a> + 'a {
             Box::new(f) as ShyFunction
     }
 
@@ -239,20 +242,18 @@ impl<'a> ExecutionContext<'a> {
     /// that holds a single float or integer and returns a double.
     pub fn shy_double_func<G>(g: G) -> ShyFunction<'a>
         where G: Fn(f64) -> f64 + 'a {
-            Ctx::shy_func(move |v| match v {
-                ShyValue::Scalar(ShyScalar::Rational(x)) => Ctx::double(g(*x)),
-                ShyValue::Scalar(ShyScalar::Integer(i)) => Ctx::double(g(*i as f64)),
-                ShyValue::Vector(vect) if vect.len() == 1 => match vect[0] {
-                    ShyScalar::Rational(x) => Ctx::double(g(x)),
-                    ShyScalar::Integer(i) => Ctx::double(g(i as f64)),
-                    _ => Ctx::double(f64::NAN)
-                },
-                _ => Ctx::double(f64::NAN)
+            Ctx::shy_func(move |v| {
+                match v {
+                    ShyValue::Scalar(ShyScalar::Rational(x)) => g(x).into(),
+                    ShyValue::Scalar(ShyScalar::Integer(i)) => g(i as f64).into(),
+                    ShyValue::Vector(vect) if vect.len() == 1 => match vect[0] {
+                        ShyScalar::Rational(x) => g(x).into(),
+                        ShyScalar::Integer(i) => g(i as f64).into(),
+                        _ => f64::NAN.into()
+                    },
+                    _ => f64::NAN.into()
+                }
             })
-    }
-
-    pub fn double(x: f64) -> ShyValue<'a> {
-        ShyValue::Scalar(ShyScalar::Rational(x))
     }
 
     fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
@@ -272,11 +273,11 @@ impl<'a> ExecutionContext<'a> {
 
     fn standard_variables() ->  HashMap<String, ShyValue<'a>> {
         let mut map = HashMap::new();
-        map.insert("PI".to_string(), Ctx::double(f64::consts::PI));
-        map.insert("π".to_string(), Ctx::double(f64::consts::PI));
-        map.insert("e".to_string(), Ctx::double(f64::consts::E));
-        map.insert("φ".to_string(), Ctx::double( (1.0 + 5_f64.sqrt())/2.0 ));
-        map.insert("PHI".to_string(), Ctx::double( (1.0 + 5_f64.sqrt())/2.0 ));
+        map.insert("PI".to_string(), f64::consts::PI.into());
+        map.insert("π".to_string(), f64::consts::PI.into());
+        map.insert("e".to_string(), f64::consts::E.into());
+        map.insert("φ".to_string(), ( (1.0 + 5_f64.sqrt())/2.0).into());
+        map.insert("PHI".to_string(), ( (1.0 + 5_f64.sqrt())/2.0).into());
         map
     }
 
@@ -298,17 +299,26 @@ impl<'a> ExecutionContext<'a> {
     }    
 
     /// Store a new value for the variable in the context.
-    pub fn store(&mut self, name: &String, val: ShyValue<'a>) {
+    pub fn store(&mut self, name: String, val: ShyValue<'a>) {
         self.variables.insert(name.clone(), val);
     }
 
     /// Retrieve the current value of the variable from the context, or an Error.
-    pub fn load(&self, name: &String) -> ShyValue<'a> {
-        match self.variables.get(name) {
+    pub fn load(&self, name: String) -> ShyValue<'a> { 
+        match self.variables.get(&name) {
             Some(val) => val.clone(),
-            None => ShyValue::Scalar(ShyScalar::Error(format!("Name {} not found in context", name)))
+            None => ShyValue::error(format!("Name {} not found in context", name))
         }
     }
+
+    /// Call a function that is stored in the context.
+    pub fn call(&self, function_name: String, args: ShyValue<'a>) -> ShyValue<'a> {
+        match self.functions.get(&function_name) {
+            Some(func) => func(args),
+            None => ShyValue::error(format!("No function named {} in context", function_name))
+        }
+    }
+
 }
 
 impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
@@ -316,11 +326,14 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
     fn from(initial_values: &HashMap<String,f64>) -> Self {
         let mut context = ExecutionContext::default();
         for (key, value) in &*initial_values {
-            context.variables.insert(key.clone(), Ctx::double(*value));
+            let wrapped_value: ShyValue<'a> = (*value).into();
+            context.variables.insert(key.clone(), wrapped_value);
         }
         context
     }
 }
+
+
 
 //..................................................................
 
@@ -502,6 +515,16 @@ mod tests {
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(5))),
             ShyToken::Operator(ShyOperator::Divide),
         ]);
+    }
+
+    #[test]
+    fn context_call() {
+        let ctx = ExecutionContext::default();
+        let actual = ctx.call("exp".to_string(), 0_f64.into());
+        match actual {
+            ShyValue::Scalar(ShyScalar::Rational(x)) => assert_that(&x).is_close_to(1_f64, 0.000001),
+            _ => assert!(false, format!("Wrong type of value returned from call {:?}", actual))
+        }
     }
 
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
