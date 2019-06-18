@@ -361,8 +361,50 @@ impl<'a> Expression<'a> {
         }
     }
 
+    /// Check if the stack has enough items to satisfy the needs of the operator
+    fn is_stack_size_sufficient(output_stack: &mut Vec<ShyValue<'a>>, op: ShyOperator) -> bool {
+        op.arguments() >= output_stack.len() 
+    }
+
+    /// Check if the stack is topped by an error value
+    fn does_stack_have_error(output_stack: &mut Vec<ShyValue<'a>>) -> bool {
+        match output_stack.last() {
+            Some(ShyValue::Scalar(ShyScalar::Error(_))) => true,
+            _ => false
+        }
+    }
+
     /// Apply an operator, removing tokens from the stack, computing a result, and pushing the result back on the stack.
     fn operate(output_stack: &mut Vec<ShyValue<'a>>, op: ShyOperator, context: &mut ExecutionContext<'a>) {
+        if Self::does_stack_have_error(output_stack) { return; }
+        if Self::is_stack_size_sufficient(output_stack, op)   {
+            output_stack.clear();
+            output_stack.push(ShyValue::error(format!("Too few values on stack for operation {:?}", op)));
+            return;
+        }
+        // If a unary operator, arg1 is the sole argument. 
+        // If a binary operator, arg1 is the left operand.
+        let mut arg1: Option<ShyValue<'a>> = None;
+
+        // If a unary operator, arg2 is None.
+        // If a binary operator, arg2 is the right operand.
+        let mut arg2: Option<ShyValue<'a>> = None;
+        let mut arg3: Option<ShyValue<'a>> = None;
+        match op.arguments() {
+            1 => {
+                arg1 = output_stack.pop();
+            },
+            2 => {
+                arg2 = output_stack.pop();
+                arg1 = output_stack.pop();
+            },
+            3 => {
+                arg3 = output_stack.pop();
+                arg2 = output_stack.pop();
+                arg1 = output_stack.pop();
+            },
+            _ => ()
+        }
         match op {
             ShyOperator::Load => (),
             ShyOperator::Store => (),
@@ -407,9 +449,67 @@ impl<'a> Expression<'a> {
             ShyOperator::ModAssign => (),
             ShyOperator::AndAssign => (),
             ShyOperator::OrAssign => (),
-            _ => panic!("Invalid operator {:?}", op),
+            _ => {
+                output_stack.clear();
+                output_stack.push(ShyValue::error(format!("Invalid operator {:?}", op)));
+                ()
+            }
         }
     }
+
+    pub fn normalize(op: ShyOperator, mut arg1: &Option<ShyValue<'a>>, mut arg2: &Option<ShyValue<'a>>, mut arg3: &Option<ShyValue<'a>>) {
+        match op {
+            ShyOperator::Load => (),
+            ShyOperator::Store => (),
+            ShyOperator::Semicolon => (),
+            ShyOperator::FunctionCall => (),
+            ShyOperator::OpenParenthesis => (),
+            ShyOperator::CloseParenthesis => (),
+            ShyOperator::Comma => (),
+            ShyOperator::OpenBracket => (),
+            ShyOperator::CloseBracket => (),
+            ShyOperator::Member => (),
+            ShyOperator::Power => (),
+            ShyOperator::Exponentiation => (),
+            ShyOperator::PrefixPlusSign => (),
+            ShyOperator::PrefixMinusSign => (),
+            ShyOperator::PostIncrement => (),
+            ShyOperator::PostDecrement => (),
+            ShyOperator::SquareRoot => (),
+            ShyOperator::LogicalNot => (),
+            ShyOperator::Factorial => (),
+            ShyOperator::Match => (),
+            ShyOperator::NotMatch => (),
+            ShyOperator::Multiply => (),
+            ShyOperator::Divide => (),
+            ShyOperator::Mod => (),
+            ShyOperator::Add => (),
+            ShyOperator::Subtract => (),
+            ShyOperator::LessThan => (),
+            ShyOperator::LessThanOrEqualTo => (),
+            ShyOperator::GreaterThan => (),
+            ShyOperator::GreaterThanOrEqualTo => (),
+            ShyOperator::Equals => (),
+            ShyOperator::NotEquals => (),
+            ShyOperator::And => (), 
+            ShyOperator::Or => (), 
+            ShyOperator::Ternary => (),
+            ShyOperator::Assign => (),
+            ShyOperator::PlusAssign => (),
+            ShyOperator::MinusAssign => (),
+            ShyOperator::MultiplyAssign => (),
+            ShyOperator::DivideAssign => (),
+            ShyOperator::ModAssign => (),
+            ShyOperator::AndAssign => (),
+            ShyOperator::OrAssign => (),
+            _ => {
+                output_stack.clear();
+                output_stack.push(ShyValue::error(format!("Invalid operator {:?}", op)));
+                ()
+            }
+        }
+    }
+    
 }
 
 //..................................................................

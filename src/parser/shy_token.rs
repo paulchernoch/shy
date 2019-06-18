@@ -29,6 +29,7 @@ custom_derive! {
     }
 }
 
+
 //..................................................................
 
 /// A ShyOperator represents a specific operator that may be applied to operands (ShyValues).
@@ -162,6 +163,58 @@ impl ShyOperator {
             _ => Associativity::Left
         }
     }
+
+    /// Number of arguments that each operator takes.
+    pub fn arguments(self) -> usize {
+        match self {
+            ShyOperator::Load => 1,
+            ShyOperator::Store => 1,
+            ShyOperator::Semicolon => 0,
+            // FunctionCall is variable, but the arguments are packed into a single Vec by the comma operators.
+            ShyOperator::FunctionCall => 1,
+            ShyOperator::OpenParenthesis => 0,
+            ShyOperator::CloseParenthesis => 0,
+            ShyOperator::Comma => 2,
+            ShyOperator::OpenBracket => 0,
+            ShyOperator::CloseBracket => 1,
+            ShyOperator::Member => 2,
+            ShyOperator::Power => 2,
+            ShyOperator::Exponentiation => 2,
+            ShyOperator::PrefixPlusSign => 1,
+            ShyOperator::PrefixMinusSign => 1,
+            ShyOperator::PostIncrement => 1,
+            ShyOperator::PostDecrement => 1,
+            ShyOperator::SquareRoot => 1,
+            ShyOperator::LogicalNot => 1,
+            ShyOperator::Factorial => 1,
+            ShyOperator::Match => 2,
+            ShyOperator::NotMatch => 2,
+            ShyOperator::Multiply => 2,
+            ShyOperator::Divide => 2,
+            ShyOperator::Mod => 2,
+            ShyOperator::Add => 2,
+            ShyOperator::Subtract => 2,
+            ShyOperator::LessThan => 2,
+            ShyOperator::LessThanOrEqualTo => 2,
+            ShyOperator::GreaterThan => 2,
+            ShyOperator::GreaterThanOrEqualTo => 2,
+            ShyOperator::Equals => 2,
+            ShyOperator::NotEquals => 2,
+            ShyOperator::And => 2, 
+            ShyOperator::Or => 2, 
+            ShyOperator::Ternary => 3,
+            ShyOperator::Assign => 2,
+            ShyOperator::PlusAssign => 2,
+            ShyOperator::MinusAssign => 2,
+            ShyOperator::MultiplyAssign => 2,
+            ShyOperator::DivideAssign => 2,
+            ShyOperator::ModAssign => 2,
+            ShyOperator::AndAssign => 2,
+            ShyOperator::OrAssign => 2,
+            _ => 0
+        }
+    }
+
 }
 
 impl From<ParserToken> for ShyOperator {
@@ -296,6 +349,45 @@ impl<'a> ShyValue<'a> {
         match self {
             ShyValue::Scalar(ShyScalar::Error(_)) => true,
             _ => false
+        }
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            ShyValue::FunctionName(_) => "FunctionName",
+            ShyValue::Variable(_) => "Variable",
+            ShyValue::Vector(_) => "Vector",
+            ShyValue::Scalar(ShyScalar::Boolean(_)) => "Boolean",
+            ShyValue::Scalar(ShyScalar::Integer(_)) => "Integer",
+            ShyValue::Scalar(ShyScalar::Rational(_)) => "Rational",
+            ShyValue::Scalar(ShyScalar::String(_)) => "String",
+            ShyValue::Scalar(ShyScalar::Error(_)) => "Error",
+        }
+    }
+
+    /// Asserts that the two operands are incompatible when used with the given binary operator
+    /// and formats an appropriate error message.
+    fn incompatible(operands: (&Self,&Self), operator_name: &str) -> Self {
+        let (left, right) = operands;
+        ShyValue::error(format!("Operands for {} operator have incompatible types {} and {}", operator_name, left.type_name(), right.type_name()))
+    }
+
+    /// Add two ShyValues.
+    /// This will not load a Variable value from the context. Caller must take care of that first.
+    pub fn add(operands: (&Self,&Self)) -> Self {
+        match operands {
+            // Floating point addition (with optional cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left + right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 + right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left + *right as f64).into(),
+
+            // Integer addition
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left + right).into(),
+
+            // String concatenation
+            (ShyValue::Scalar(ShyScalar::String(left)), ShyValue::Scalar(ShyScalar::String(right))) => format!("{}{}", left , right).into(),
+
+            _ => ShyValue::incompatible(operands, "add")
         }
     }
 }
