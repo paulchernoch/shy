@@ -5,6 +5,9 @@ extern crate itertools;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate enum_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 #[allow(unused_macros)]
 #[cfg(test)]
 extern crate spectral;

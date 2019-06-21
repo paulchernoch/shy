@@ -15,6 +15,7 @@ use shy_token::ShyOperator;
 use shy_token::ShyValue;
 use shy_token::ShyScalar;
 
+
 //..................................................................
 
 #[derive(Debug)]
@@ -457,58 +458,7 @@ impl<'a> Expression<'a> {
         }
     }
 
-    pub fn normalize(op: ShyOperator, mut arg1: &Option<ShyValue<'a>>, mut arg2: &Option<ShyValue<'a>>, mut arg3: &Option<ShyValue<'a>>) {
-        match op {
-            ShyOperator::Load => (),
-            ShyOperator::Store => (),
-            ShyOperator::Semicolon => (),
-            ShyOperator::FunctionCall => (),
-            ShyOperator::OpenParenthesis => (),
-            ShyOperator::CloseParenthesis => (),
-            ShyOperator::Comma => (),
-            ShyOperator::OpenBracket => (),
-            ShyOperator::CloseBracket => (),
-            ShyOperator::Member => (),
-            ShyOperator::Power => (),
-            ShyOperator::Exponentiation => (),
-            ShyOperator::PrefixPlusSign => (),
-            ShyOperator::PrefixMinusSign => (),
-            ShyOperator::PostIncrement => (),
-            ShyOperator::PostDecrement => (),
-            ShyOperator::SquareRoot => (),
-            ShyOperator::LogicalNot => (),
-            ShyOperator::Factorial => (),
-            ShyOperator::Match => (),
-            ShyOperator::NotMatch => (),
-            ShyOperator::Multiply => (),
-            ShyOperator::Divide => (),
-            ShyOperator::Mod => (),
-            ShyOperator::Add => (),
-            ShyOperator::Subtract => (),
-            ShyOperator::LessThan => (),
-            ShyOperator::LessThanOrEqualTo => (),
-            ShyOperator::GreaterThan => (),
-            ShyOperator::GreaterThanOrEqualTo => (),
-            ShyOperator::Equals => (),
-            ShyOperator::NotEquals => (),
-            ShyOperator::And => (), 
-            ShyOperator::Or => (), 
-            ShyOperator::Ternary => (),
-            ShyOperator::Assign => (),
-            ShyOperator::PlusAssign => (),
-            ShyOperator::MinusAssign => (),
-            ShyOperator::MultiplyAssign => (),
-            ShyOperator::DivideAssign => (),
-            ShyOperator::ModAssign => (),
-            ShyOperator::AndAssign => (),
-            ShyOperator::OrAssign => (),
-            _ => {
-                output_stack.clear();
-                output_stack.push(ShyValue::error(format!("Invalid operator {:?}", op)));
-                ()
-            }
-        }
-    }
+
     
 }
 

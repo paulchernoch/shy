@@ -944,7 +944,7 @@ mod tests {
 
     #[test]
     /// Verify the Lexer can parse integers, floating point and numbers using exponential notation.
-    fn powerop() {
+    fn numbers() {
         lexer_test_helper(
             " 1 23 4.5 -6 +78. -99.999 1.02E+05 34.567e-0120 0. .5 -.5 ", 
             vec![
@@ -965,7 +965,7 @@ mod tests {
 
     #[test]
     /// Verify the Lexer can parse superscripted numbers: ¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁰
-    fn numbers() {
+    fn powerop() {
         lexer_test_helper(
             "15³ - 2¹⁰", 
             vec![

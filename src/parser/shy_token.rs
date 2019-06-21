@@ -1,8 +1,12 @@
 #![allow(dead_code)]
 
 #[allow(unused_imports)]
+
 use crate::lexer::ParserToken;
 use std::mem::discriminant;
+use std::f64;
+use std::convert::TryFrom;
+use std::collections::HashSet;
 
 /*
     Data used in the ShuntingYard parser:
@@ -19,6 +23,8 @@ use std::mem::discriminant;
 
 */
 
+//..................................................................
+
 /// Operator Associativity
 custom_derive! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(AssociativityVariants), IterVariantNames(AssociativityVariantNames))]
@@ -29,6 +35,78 @@ custom_derive! {
     }
 }
 
+//..................................................................
+
+/// Checking a string to see if it is truthy or falsy.
+
+lazy_static! {
+    static ref FALSEY: HashSet<&'static str> = {
+        let mut falsey_values = HashSet::new();
+        falsey_values.insert("F");
+        falsey_values.insert("f");
+        falsey_values.insert("false");
+        falsey_values.insert("False");
+        falsey_values.insert("FALSE");
+        falsey_values.insert("n");
+        falsey_values.insert("N");
+        falsey_values.insert("no");
+        falsey_values.insert("No");
+        falsey_values.insert("NO");
+        falsey_values.insert("0");
+        falsey_values.insert("");
+        falsey_values
+    };
+}
+
+pub fn is_falsey(s: &str) -> bool {
+    FALSEY.contains(s)
+}
+
+pub fn is_truthy(s: &str) -> bool {
+    !FALSEY.contains(s)
+}
+
+//..................................................................
+
+/// Factorial lookup.
+
+lazy_static! {
+    static ref FACTORIAL: [i64; 21] = {
+        let mut factorial_values : [i64; 21] = [
+            1,
+            1,
+            1 * 2,
+            1 * 2 * 3,
+            1 * 2 * 3 * 4,
+            1 * 2 * 3 * 4 * 5,
+            1 * 2 * 3 * 4 * 5 * 6,
+            1 * 2 * 3 * 4 * 5 * 6 * 7,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15 * 16,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15 * 16 * 17,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15 * 16 * 17 * 18,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15 * 16 * 17 * 18 * 19,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12 * 13 * 14 * 15 * 16 * 17 * 18 * 19 * 20
+        ];
+        factorial_values
+    };
+}
+
+/// Compute the factorial of an integer between 0 and 20 (inclusive).
+/// If the number os out of range, return None.
+fn factorial(n : i64) -> Option<i64> {
+    match usize::try_from(n) {
+        Ok(i) if i >= 0 && i <= 20 => Some(FACTORIAL[i]),
+        _ => None
+    }
+}
 
 //..................................................................
 
@@ -367,15 +445,73 @@ impl<'a> ShyValue<'a> {
 
     /// Asserts that the two operands are incompatible when used with the given binary operator
     /// and formats an appropriate error message.
-    fn incompatible(operands: (&Self,&Self), operator_name: &str) -> Self {
-        let (left, right) = operands;
+    fn incompatible(left: &Self, right: &Self, operator_name: &str) -> Self {
         ShyValue::error(format!("Operands for {} operator have incompatible types {} and {}", operator_name, left.type_name(), right.type_name()))
     }
 
+    fn out_of_range(left: &Self, operator_name: &str) -> Self {
+        ShyValue::error(format!("Operand for {} operator has {} value {:?} that is out of range", operator_name, left.type_name(), left))
+    }
+
+    //..................................................................
+
+    // Checks for special values: is_nan, is_false, is_true, is_falsey, is_truthy, is_number, is_zero
+
+    pub fn is_nan(&self) -> bool {
+        if let ShyValue::Scalar(ShyScalar::Rational(value)) = self { value.is_nan() }
+        else { false }
+    }
+
+    pub fn is_false(&self) -> bool {
+        if let ShyValue::Scalar(ShyScalar::Boolean(value)) = self { !value }
+        else { false }
+    }
+
+    pub fn is_true(&self) -> bool {
+        if let ShyValue::Scalar(ShyScalar::Boolean(value)) = self { *value }
+        else { false }
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            ShyValue::Scalar(ShyScalar::Boolean(value)) => *value,
+            ShyValue::Scalar(ShyScalar::Integer(value)) => *value != 0,
+            ShyValue::Scalar(ShyScalar::Rational(value)) => *value != 0.0,
+            ShyValue::Scalar(ShyScalar::String(value)) => is_truthy(value),
+            _ => false
+        }
+    }
+
+    pub fn is_falsey(&self) -> bool {
+        !self.is_truthy()
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self {
+            ShyValue::Scalar(ShyScalar::Integer(_)) => true,
+            ShyValue::Scalar(ShyScalar::Rational(value)) => !value.is_nan(),
+            _ => false
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        match self {
+            ShyValue::Scalar(ShyScalar::Integer(value)) => *value == 0i64,
+            ShyValue::Scalar(ShyScalar::Rational(value)) => *value == 0.0f64,
+            _ => false
+        }
+    }
+
+    //..................................................................
+
+    // Arithmetic Operators
+
+    // Methods to perform operations
+    // Note: They will not load a Variable value from the context. Caller must take care of that first.
+
     /// Add two ShyValues.
-    /// This will not load a Variable value from the context. Caller must take care of that first.
-    pub fn add(operands: (&Self,&Self)) -> Self {
-        match operands {
+    pub fn add(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
             // Floating point addition (with optional cast of integer to float)
             (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left + right).into(),
             (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 + right).into(),
@@ -387,9 +523,183 @@ impl<'a> ShyValue<'a> {
             // String concatenation
             (ShyValue::Scalar(ShyScalar::String(left)), ShyValue::Scalar(ShyScalar::String(right))) => format!("{}{}", left , right).into(),
 
-            _ => ShyValue::incompatible(operands, "add")
+            _ => ShyValue::incompatible(left_operand, right_operand, "add")
         }
     }
+
+    /// Subtract two ShyValues.
+    pub fn subtract(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            // Floating point subtraction (with optional cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left - right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 - right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left - *right as f64).into(),
+
+            // Integer subtraction
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left - right).into(),
+
+            _ => ShyValue::incompatible(left_operand, right_operand, "subtract")
+        }
+    }
+
+    /// Multiply two ShyValues.
+    pub fn multiply(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            // Floating point multiplication (with optional cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left * right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 * right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left * *right as f64).into(),
+
+            // Integer multiplication
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left * right).into(),
+
+            // String replication
+            (ShyValue::Scalar(ShyScalar::String(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => { 
+                let mut s = String::new();
+                for _index in 1..=*right {
+                    s.push_str(left);
+                }
+                s.into()
+            },
+
+            _ => ShyValue::incompatible(left_operand, right_operand, "multiply")
+        }
+    }
+
+    /// Divide two ShyValues.
+    pub fn divide(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            // Floating point division (with cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left / right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 / right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left / *right as f64).into(),
+
+            // Integers are divided using floating point division
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (*left as f64 / *right as f64).into(),
+
+            _ => ShyValue::incompatible(left_operand, right_operand, "divide")
+        }
+    }
+
+    /// Divide one ShyValue modulo a second ShyValue.
+    pub fn modulo(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            // Floating point mod (with cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (left % right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64 % right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (left % *right as f64).into(),
+
+            // Integers use integer modular division
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => (*left % *right).into(),
+
+            _ => ShyValue::incompatible(left_operand, right_operand, "modulo")
+        }
+    }
+
+    /// Exponentiation operator. 
+    pub fn power(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            // Floating point exponentiation (with cast of integer to float)
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => left.powf(*right).into(),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) => (*left as f64).powf(*right).into(),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) 
+                => {
+                    if let Ok(ipower) = i32::try_from(*right) {
+                        return left.powi(ipower).into();
+                    }
+                    left.powf(*right as f64).into()
+                },
+
+            // Integers use pow or powi when possible
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right)))
+                => {
+                    if let Ok(upower) = u32::try_from(*right) {
+                        // Integer raised to non-negative integer power. Return an Integer.
+                        return left.pow(upower).into();
+                    }
+                    if let Ok(ipower) = i32::try_from(*right) {
+                        // Integer possibly raised to negative integer power. Return a Rational.
+                        return (*left as f64).powi(ipower).into();
+                    }
+                    (*left as f64).powf(*right as f64).into()
+                },
+
+            _ => ShyValue::incompatible(left_operand, right_operand, "power")
+        }
+    }
+
+    /// Square root operator.
+    pub fn sqrt(left_operand: &Self) -> Self {
+        Self::power(left_operand, &0.5.into())
+    }
+ 
+    /// Factorial operator.
+    pub fn factorial(left_operand: &Self) -> Self {
+        match left_operand {
+            ShyValue::Scalar(ShyScalar::Integer(value)) => {
+                match factorial(*value) {
+                    Some(fact) => fact.into(),
+                    _ => ShyValue::out_of_range(left_operand, "factorial")
+                }
+            },
+            ShyValue::Scalar(ShyScalar::Rational(value)) if value.fract() == 0.0 => {
+                match factorial(*value as i64) {
+                    Some(fact) => fact.into(),
+                    _ => ShyValue::out_of_range(left_operand, "factorial")
+                }
+            },
+            _ => ShyValue::out_of_range(left_operand, "factorial")
+        }
+    }
+
+    //..................................................................
+
+    // Logical and Relational Operators
+
+    /*
+        LogicalNot,
+        LessThan,
+        LessThanOrEqualTo,
+        GreaterThan,
+        GreaterThanOrEqualTo,
+        Equals,
+        NotEquals,
+        And, 
+        Or, 
+    */
+
+    //..................................................................
+
+    // Assignment Operators
+
+    /*
+        Assign,
+        PlusAssign,
+        MinusAssign,
+        MultiplyAssign,
+        DivideAssign,
+        ModAssign,
+        AndAssign,
+        OrAssign,
+    */
+
+    //..................................................................
+
+    // Miscellaneous Operators
+
+    /*
+        Comma,
+        OpenBracket,
+        CloseBracket,
+        Member,
+        PrefixPlusSign,
+        PrefixMinusSign,
+        Match,
+        NotMatch,
+        Ternary,
+        PostIncrement,
+        PostDecrement,
+    */
 }
 
 // Conversions from basic types to ShyValue
@@ -551,5 +861,130 @@ mod tests {
             ShyToken::Operator(ShyOperator::NotEquals) => assert!(true),
             _ => assert!(false)
         };
+    }
+
+    #[test]
+    /// Adding ShyValues.
+    fn shyvalue_add() {
+        binary_operator_test(&2.5.into(), &3.5.into(), &6.0.into(), &ShyValue::add);
+        binary_operator_test(&10.into(),  &2.into(),   &12.into(),  &ShyValue::add);
+        binary_operator_test(&10.into(), &2.5.into(), &12.5.into(), &ShyValue::add);
+        binary_operator_test(&"Hello ".into(), &"World".into(), &"Hello World".into(), &ShyValue::add);
+        assert!( &ShyValue::add(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Subtracting ShyValues.
+    fn shyvalue_subtract() {
+        binary_operator_test(&2.5.into(), &3.5.into(), &(-1.0).into(), &ShyValue::subtract);
+        binary_operator_test(&10.into(),  &2.into(),   &8.into(),  &ShyValue::subtract);
+        binary_operator_test(&10.into(), &2.5.into(), &7.5.into(), &ShyValue::subtract);
+        assert!( &ShyValue::subtract(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Multiplying ShyValues.
+    fn shyvalue_multiply() {
+        binary_operator_test(&2.5.into(), &3.5.into(), &8.75.into(), &ShyValue::multiply);
+        binary_operator_test(&10.into(),  &2.into(),   &20.into(),  &ShyValue::multiply);
+        binary_operator_test(&10.into(), &2.5.into(), &25.0.into(), &ShyValue::multiply);
+        binary_operator_test(&"la".into(), &3.into(), &"lalala".into(), &ShyValue::multiply);
+        assert!( &ShyValue::multiply(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Dividing ShyValues.
+    fn shyvalue_divide() {
+        binary_operator_test(&7.0.into(), &2.0.into(), &3.5.into(), &ShyValue::divide);
+        binary_operator_test(&10.into(),  &2.into(),   &5.0.into(),  &ShyValue::divide);
+        binary_operator_test(&12.0.into(), &3.into(), &4.0.into(), &ShyValue::divide);
+        binary_operator_test(&1.into(), &0.into(), &f64::INFINITY.into(), &ShyValue::divide); // Divide by zero check
+        assert!( &ShyValue::divide(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Modulo with ShyValues.
+    fn shyvalue_modulo() {
+        binary_operator_test(&7.0.into(), &2.0.into(), &1.0.into(), &ShyValue::modulo);
+        binary_operator_test(&17.into(),  &5.into(),   &2.into(),  &ShyValue::modulo);
+        binary_operator_test(&33.into(), &2.5.into(), &0.5.into(), &ShyValue::modulo);
+        assert!( &ShyValue::modulo(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Exponentiating ShyValues (raise to a power).
+    fn shyvalue_power() {
+        binary_operator_test(&2.0.into(), &3.0.into(), &8.0.into(), &ShyValue::power);
+        binary_operator_test(&10.into(),  &2.into(),   &100.into(),  &ShyValue::power);
+        binary_operator_test(&16.into(),  &0.5.into(),   &4.0.into(),  &ShyValue::power);
+        binary_operator_test(&10.0.into(), &(-2).into(), &0.01.into(), &ShyValue::power);
+        assert!( &ShyValue::power(&true.into(), &3.5.into()).is_error());
+    }
+
+    #[test]
+    /// Square root of a ShyValue.
+    fn shyvalue_sqrt() {
+        unary_operator_test(&4.into(), &2.0.into(), &ShyValue::sqrt);
+        unary_operator_test(&16.0.into(),  &4.0.into(), &ShyValue::sqrt);
+
+        // Since NaN does not equal NaN, a different test for square root of a negative number:
+        assert!(&ShyValue::sqrt(&(-16).into()).is_nan());
+
+        assert!(&ShyValue::sqrt(&true.into()).is_error());
+    }
+
+    #[test]
+    /// Factorial of a ShyValue.
+    fn shyvalue_factorial() {
+        unary_operator_test(&1.into(), &1.into(), &ShyValue::factorial);
+        unary_operator_test(&4.into(), &24.into(), &ShyValue::factorial);
+        unary_operator_test(&5.0.into(), &120.into(), &ShyValue::factorial);
+        assert!(&ShyValue::factorial(&21.0.into()).is_error());
+    }
+
+    #[test]
+    /// Test is_truthy
+    fn is_truthy_tests() {
+        assert!(is_truthy("y"));
+        assert!(is_truthy("yes"));
+        assert!(is_truthy("Y"));
+        assert!(is_truthy("YES"));
+        assert!(is_truthy("Yes"));
+        assert!(is_truthy("t"));
+        assert!(is_truthy("T"));
+        assert!(is_truthy("true"));
+        assert!(is_truthy("True"));
+        assert!(is_truthy("TRUE"));
+        assert!(is_truthy("1"));
+        assert!(!is_truthy("false"));
+        assert!(!is_truthy("NO"));
+    }
+
+    #[test]
+    /// Test is_falsey
+    fn is_falsey_tests() {
+        assert!(is_falsey("n"));
+        assert!(is_falsey("no"));
+        assert!(is_falsey("N"));
+        assert!(is_falsey("NO"));
+        assert!(is_falsey("f"));
+        assert!(is_falsey("F"));
+        assert!(is_falsey("false"));
+        assert!(is_falsey("False"));
+        assert!(is_falsey("FALSE"));
+        assert!(is_falsey("0"));
+        assert!(!is_falsey("T"));
+    }
+
+    /// Test a binary operator
+    fn binary_operator_test<'a>(left: &ShyValue<'a>, right: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>, &ShyValue<'a>) -> ShyValue<'a>) {
+        let actual = op(left, right);
+        assert_that(&actual).is_equal_to(expected);
+    }
+
+    /// Test a unary operator
+    fn unary_operator_test<'a>(left: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>) -> ShyValue<'a>) {
+        let actual = op(left);
+        assert_that(&actual).is_equal_to(expected);
     }
 }
