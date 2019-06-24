@@ -7,6 +7,7 @@ use std::mem::discriminant;
 use std::f64;
 use std::convert::TryFrom;
 use std::collections::HashSet;
+use std::cmp::Ordering;
 
 /*
     Data used in the ShuntingYard parser:
@@ -68,10 +69,10 @@ pub fn is_truthy(s: &str) -> bool {
 
 //..................................................................
 
-/// Factorial lookup.
+/// Factorial lookup for integers.
 
 lazy_static! {
-    static ref FACTORIAL: [i64; 21] = {
+    static ref FACTORIAL_FIXED: [i64; 21] = {
         let mut factorial_values : [i64; 21] = [
             1,
             1,
@@ -103,7 +104,30 @@ lazy_static! {
 /// If the number os out of range, return None.
 fn factorial(n : i64) -> Option<i64> {
     match usize::try_from(n) {
-        Ok(i) if i >= 0 && i <= 20 => Some(FACTORIAL[i]),
+        Ok(i) if i <= 20 => Some(FACTORIAL_FIXED[i]),
+        _ => None
+    }
+}
+
+//..................................................................
+
+/// Approximate Factorial lookup for numbers up to and including 170!.
+
+lazy_static! {
+    static ref FACTORIAL_FLOAT: [f64; 171] = {
+        let mut factorial_values : [f64; 171] = [1.0; 171];
+        for n in 2..=170 {
+            factorial_values[n] = factorial_values[n-1] * (n as f64);
+        }
+        factorial_values
+    };
+}
+
+/// Compute the factorial of an integer between 0 and 170 (inclusive), where the larger values are approximate.
+/// If the number is out of range, return None.
+fn factorial_approx(n : i64) -> Option<f64> {
+    match usize::try_from(n) {
+        Ok(i) if i <= 170 => Some(FACTORIAL_FLOAT[i]),
         _ => None
     }
 }
@@ -396,6 +420,49 @@ pub enum ShyValue<'a> {
     /// Name of a function in the context to be called.
     FunctionName(String)
 }
+const TRUE_STRING: &str = "True";
+const FALSE_STRING: &str = "False";
+impl<'a> PartialOrd for ShyValue<'a> {
+
+    fn partial_cmp(&self, right_operand: &Self) -> Option<Ordering> {
+        let t = &TRUE_STRING.to_string();
+        let f = &FALSE_STRING.to_string();
+        match (self, right_operand) {
+            // Floating point comparison
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Rational(right))) 
+                => Some(left.partial_cmp(right).unwrap_or(Ordering::Less)),
+
+            // Floating point to integer comparison
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Rational(right))) 
+                => Some((*left as f64).partial_cmp(right).unwrap_or(Ordering::Less)),
+            (ShyValue::Scalar(ShyScalar::Rational(left)), ShyValue::Scalar(ShyScalar::Integer(right))) 
+                => Some(left.partial_cmp(&(*right as f64)).unwrap_or(Ordering::Less)),
+
+            // Integer comparison
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Integer(right))) => Some(left.cmp(right)),
+
+            // String comparison
+            (ShyValue::Scalar(ShyScalar::String(left)), ShyValue::Scalar(ShyScalar::String(right))) => Some(left.cmp(right)),
+
+            // Bool comparison
+            (ShyValue::Scalar(ShyScalar::Boolean(left)), ShyValue::Scalar(ShyScalar::Boolean(right))) => Some(left.cmp(right)),
+
+            // Bool to String comparison - assume false is "False" and true is "True"
+            (ShyValue::Scalar(ShyScalar::Boolean(left)), ShyValue::Scalar(ShyScalar::String(right))) 
+                => Some(if *left { t.cmp(right) } else { f.cmp(right) } ),
+            (ShyValue::Scalar(ShyScalar::String(left)), ShyValue::Scalar(ShyScalar::Boolean(right))) 
+                => Some(left.cmp( if *right { t } else { f } )),
+
+            // Bool to integer comparison - assume false is zero and true is one.
+            (ShyValue::Scalar(ShyScalar::Boolean(left)), ShyValue::Scalar(ShyScalar::Integer(right))) 
+                => Some(if *left { 1_i64.cmp(right) } else { 0_i64.cmp(right) } ),
+            (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Boolean(right))) 
+                => Some(left.cmp( if *right { &1_i64 } else { &0_i64 } )),
+
+            _ => None
+        }
+    }
+}
 
 impl<'a> From<ParserToken> for ShyValue<'a> {
     fn from(parser_token: ParserToken) -> Self {
@@ -636,8 +703,14 @@ impl<'a> ShyValue<'a> {
     /// Factorial operator.
     pub fn factorial(left_operand: &Self) -> Self {
         match left_operand {
-            ShyValue::Scalar(ShyScalar::Integer(value)) => {
+            ShyValue::Scalar(ShyScalar::Integer(value)) if *value <= 20 => {
                 match factorial(*value) {
+                    Some(fact) => fact.into(),
+                    _ => ShyValue::out_of_range(left_operand, "factorial")
+                }
+            },
+            ShyValue::Scalar(ShyScalar::Integer(value)) if *value > 20 => {
+                match factorial_approx(*value) {
                     Some(fact) => fact.into(),
                     _ => ShyValue::out_of_range(left_operand, "factorial")
                 }
@@ -654,19 +727,93 @@ impl<'a> ShyValue<'a> {
 
     //..................................................................
 
-    // Logical and Relational Operators
+    // Logical and Relational Operators: and, or, not, less_than, less_than_or_equal_to, greater_than, greater_than_or_equal_to, equals, not_equals
 
-    /*
-        LogicalNot,
-        LessThan,
-        LessThanOrEqualTo,
-        GreaterThan,
-        GreaterThanOrEqualTo,
-        Equals,
-        NotEquals,
-        And, 
-        Or, 
-    */
+    /// Logical AND of two ShyValues.
+    pub fn and(left_operand: &Self, right_operand: &Self) -> Self {
+        // If some operands are errors, propagate the error, unless the
+        // non-error operand is sufficient to determine the truth or falsehood of the expression.
+        if left_operand.is_error() { 
+            if right_operand.is_error() { return left_operand.clone(); }
+            if right_operand.is_falsey() { return false.into(); }
+            return left_operand.clone(); 
+        }
+        if left_operand.is_falsey() { return false.into(); }
+        if right_operand.is_error() { return right_operand.clone(); }
+        right_operand.is_truthy().into()
+    }
+
+    /// Logical OR of two ShyValues.
+    pub fn or(left_operand: &Self, right_operand: &Self) -> Self {
+        if left_operand.is_error() { 
+            if right_operand.is_error() { return left_operand.clone(); }
+            if right_operand.is_truthy() { return true.into(); }
+            return left_operand.clone(); 
+        }
+        if left_operand.is_truthy() { return true.into(); }
+        if right_operand.is_error() { return right_operand.clone(); }
+        right_operand.is_truthy().into()
+    }
+
+    /// Logical NOT of one ShyValue.
+    pub fn not(left_operand: &Self) -> Self {
+        if left_operand.is_error() { 
+            return left_operand.clone(); 
+        }
+        (left_operand.is_falsey()).into()
+    }
+
+    /// Less than operator for ShyValues.
+    pub fn less_than(left_operand: &Self, right_operand: &Self) -> Self {
+        match left_operand.partial_cmp(right_operand) {
+            Some(Ordering::Less) => true.into(),
+            Some(Ordering::Equal) => false.into(),
+            Some(Ordering::Greater) => false.into(),
+            None => ShyValue::error("Incomparable types".to_string())
+        }
+    }
+
+    /// Less than or equal to operator for ShyValues.
+    pub fn less_than_or_equal_to(left_operand: &Self, right_operand: &Self) -> Self {
+        match left_operand.partial_cmp(right_operand) {
+            Some(Ordering::Less) => true.into(),
+            Some(Ordering::Equal) => true.into(),
+            Some(Ordering::Greater) => false.into(),
+            None => ShyValue::error("Incomparable types".to_string())
+        }
+    }
+
+    /// Greater than operator for ShyValues.
+    pub fn greater_than(left_operand: &Self, right_operand: &Self) -> Self {
+        match left_operand.partial_cmp(right_operand) {
+            Some(Ordering::Less) => false.into(),
+            Some(Ordering::Equal) => false.into(),
+            Some(Ordering::Greater) => true.into(),
+            None => ShyValue::error("Incomparable types".to_string())
+        }
+    }
+
+    /// Greater than operator for ShyValues.
+    pub fn greater_than_or_equal_to(left_operand: &Self, right_operand: &Self) -> Self {
+        match left_operand.partial_cmp(right_operand) {
+            Some(Ordering::Less) => false.into(),
+            Some(Ordering::Equal) => true.into(),
+            Some(Ordering::Greater) => true.into(),
+            None => ShyValue::error("Incomparable types".to_string())
+        }
+    }
+
+    /// Equals operator for ShyValues.
+    pub fn equals(left_operand: &Self, right_operand: &Self) -> Self {
+        if left_operand == right_operand { true.into() }
+        else { false.into() }
+    }
+
+    /// Not equals operator for ShyValues.
+    pub fn not_equals(left_operand: &Self, right_operand: &Self) -> Self {
+        if left_operand == right_operand { false.into() }
+        else { true.into() }
+    }
 
     //..................................................................
 
@@ -976,15 +1123,73 @@ mod tests {
         assert!(!is_falsey("T"));
     }
 
+    #[test]
+    /// Test logical and operator.
+    fn shyvalue_and() {
+        binary_operator_test(&true.into(), &true.into(), &true.into(), &ShyValue::and);
+        binary_operator_test(&true.into(), &false.into(), &false.into(), &ShyValue::and);
+        binary_operator_test(&false.into(), &true.into(), &false.into(), &ShyValue::and);
+        binary_operator_test(&false.into(), &false.into(), &false.into(), &ShyValue::and);
+        binary_operator_test(&1.into(), &2.into(), &true.into(), &ShyValue::and);
+        binary_operator_test(&0.into(), &1.into(), &false.into(), &ShyValue::and);
+        binary_operator_test(&"".into(), &1.into(), &false.into(), &ShyValue::and);
+
+        // Despite an error argument, still able to conclude result is false.
+        binary_operator_test(&ShyValue::error("An error".to_string()), &false.into(), &false.into(), &ShyValue::and);
+
+        // Because of error argument, unable to determine truth or falsity.
+        assert!(ShyValue::and(&ShyValue::error("An error".to_string()), &true.into()).is_error());
+    }
+
+    #[test]
+    /// Test logical or operator.
+    fn shyvalue_or() {
+        binary_operator_test(&true.into(), &true.into(), &true.into(), &ShyValue::or);
+        binary_operator_test(&true.into(), &false.into(), &true.into(), &ShyValue::or);
+        binary_operator_test(&false.into(), &true.into(), &true.into(), &ShyValue::or);
+        binary_operator_test(&false.into(), &false.into(), &false.into(), &ShyValue::or);
+        binary_operator_test(&1.into(), &2.into(), &true.into(), &ShyValue::or);
+        binary_operator_test(&0.into(), &1.into(), &true.into(), &ShyValue::or);
+        binary_operator_test(&"".into(), &1.into(), &true.into(), &ShyValue::or);
+
+        // Despite an error argument, still able to conclude result is false.
+        binary_operator_test(&ShyValue::error("An error".to_string()), &true.into(), &true.into(), &ShyValue::or);
+
+        // Because of error argument, unable to determine truth or falsity.
+        assert!(ShyValue::or(&ShyValue::error("An error".to_string()), &false.into()).is_error());
+    }
+
+    #[test]
+    /// Test logical not operator.
+    fn shyvalue_not() {
+        unary_operator_test(&false.into(), &true.into(), &ShyValue::not);
+        unary_operator_test(&true.into(), &false.into(), &ShyValue::not);
+        unary_operator_test(&1.into(), &false.into(), &ShyValue::not);
+        unary_operator_test(&"".into(), &true.into(), &ShyValue::not);
+        assert!(&ShyValue::not(&ShyValue::error("An error".to_string())).is_error());
+    }
+
+    #[test]
+    /// Test less than operator.
+    fn shyvalue_less_than() {
+        binary_operator_test(&1.into(), &2.into(), &true.into(), &ShyValue::less_than);
+        binary_operator_test(&4.5.into(), &4.into(), &false.into(), &ShyValue::less_than);
+        binary_operator_test(&7.14.into(), &7.15.into(), &true.into(), &ShyValue::less_than);
+    }
+
+    // ...................................................................................
+
+    // Test helpers
+
     /// Test a binary operator
     fn binary_operator_test<'a>(left: &ShyValue<'a>, right: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>, &ShyValue<'a>) -> ShyValue<'a>) {
         let actual = op(left, right);
-        assert_that(&actual).is_equal_to(expected);
+        asserting(&format!("Operation on {:?} and {:?} should yield {:?}", left, right, expected)).that(&actual).is_equal_to(expected);
     }
 
     /// Test a unary operator
     fn unary_operator_test<'a>(left: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>) -> ShyValue<'a>) {
         let actual = op(left);
-        assert_that(&actual).is_equal_to(expected);
+        asserting(&format!("Operation on {:?} should yield {:?}", left, expected)).that(&actual).is_equal_to(expected);
     }
 }
