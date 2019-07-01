@@ -4,6 +4,7 @@
 use std::fmt::Result;
 use std::collections::HashMap;
 use std::f64;
+use std::marker::PhantomData;
 use crate::lexer::ParserToken;
 use crate::lexer::Lexer;
 
@@ -20,11 +21,13 @@ use shy_token::ShyScalar;
 
 #[derive(Debug)]
 pub struct ShuntingYard<'a> {
+    marker: PhantomData<&'a i64>,
+
     pub expression_source: String,
 
-    infix_order: Vec<ShyToken<'a>>,
+    infix_order: Vec<ShyToken>,
 
-    postfix_order: Vec<ShyToken<'a>>,
+    postfix_order: Vec<ShyToken>,
 
     operator_stack: Vec<ShyOperator>,
 }
@@ -32,6 +35,7 @@ pub struct ShuntingYard<'a> {
 impl<'a> From<String> for ShuntingYard<'a> {
     fn from(expression: String) -> Self {
         ShuntingYard {
+            marker: PhantomData,
             expression_source: expression,
             infix_order: vec![],
             postfix_order: vec![],
@@ -43,6 +47,7 @@ impl<'a> From<String> for ShuntingYard<'a> {
 impl<'a> From<&str> for ShuntingYard<'a> {
     fn from(expression: &str) -> Self {
         ShuntingYard {
+            marker: PhantomData,
             expression_source: expression.to_string(),
             infix_order: vec![],
             postfix_order: vec![],
@@ -69,7 +74,7 @@ impl<'a> ShuntingYard<'a> {
         // Transform ParserTokens into ShyTokens.
         self.infix_order.extend(parser_tokens.iter().map(
           |ptoken: &ParserToken| {
-              let stoken: ShyToken<'a> = ptoken.clone().into();
+              let stoken: ShyToken = ptoken.clone().into();
               if stoken.is_error() {
                   println!("Parser unable to translate ParserToken {} '{}' into a ShyToken", ptoken.name(), ptoken.to_string());
               }
@@ -204,6 +209,7 @@ impl<'a> ShuntingYard<'a> {
             Ok(_) => {
                 // TODO: Optimizations like constant folding, And/Or operator short-cutting, branching.
                 Ok(Expression { 
+                    marker: PhantomData,
                     expression_source: self.expression_source.clone(),
                     postfix_order: self.postfix_order.clone()
                 })
@@ -223,19 +229,19 @@ impl<'a> ShuntingYard<'a> {
 ///   - Some variables are used to store the results of formulas after execution. 
 ///   - The functions may be called in the expressions.
 pub struct ExecutionContext<'a> {
-    pub variables: HashMap<String, ShyValue<'a>>,
+    pub variables: HashMap<String, ShyValue>,
 
     functions: HashMap<String, ShyFunction<'a>>
 }
 
-type ShyFunction<'a> = Box<(Fn(ShyValue<'a>) -> ShyValue<'a> + 'a)>;
+type ShyFunction<'a> = Box<(Fn(ShyValue) -> ShyValue + 'a)>;
 
 type Ctx<'a> = ExecutionContext<'a>;
 
 impl<'a> ExecutionContext<'a> {
 
     pub fn shy_func<F>(f: F) -> ShyFunction<'a>
-        where F: Fn(ShyValue<'a>) -> ShyValue<'a> + 'a {
+        where F: Fn(ShyValue) -> ShyValue + 'a {
             Box::new(f) as ShyFunction
     }
 
@@ -247,7 +253,7 @@ impl<'a> ExecutionContext<'a> {
                 match v {
                     ShyValue::Scalar(ShyScalar::Rational(x)) => g(x).into(),
                     ShyValue::Scalar(ShyScalar::Integer(i)) => g(i as f64).into(),
-                    ShyValue::Vector(vect) if vect.len() == 1 => match vect[0] {
+                    ShyValue::Vector(ref vect) if vect.len() == 1 => match vect[0] {
                         ShyScalar::Rational(x) => g(x).into(),
                         ShyScalar::Integer(i) => g(i as f64).into(),
                         _ => f64::NAN.into()
@@ -272,7 +278,7 @@ impl<'a> ExecutionContext<'a> {
         map
     }
 
-    fn standard_variables() ->  HashMap<String, ShyValue<'a>> {
+    fn standard_variables() ->  HashMap<String, ShyValue> {
         let mut map = HashMap::new();
         map.insert("PI".to_string(), f64::consts::PI.into());
         map.insert("π".to_string(), f64::consts::PI.into());
@@ -282,7 +288,7 @@ impl<'a> ExecutionContext<'a> {
         map
     }
 
-    pub fn new(mut vars: HashMap<String, ShyValue<'a>>, mut funcs: HashMap<String, ShyFunction<'a>>) -> Self {
+    pub fn new(mut vars: HashMap<String, ShyValue>, mut funcs: HashMap<String, ShyFunction<'a>>) -> Self {
         vars.extend(ExecutionContext::standard_variables());
         funcs.extend(ExecutionContext::standard_functions());
         ExecutionContext {
@@ -300,12 +306,12 @@ impl<'a> ExecutionContext<'a> {
     }    
 
     /// Store a new value for the variable in the context.
-    pub fn store(&mut self, name: String, val: ShyValue<'a>) {
+    pub fn store(&mut self, name: String, val: ShyValue) {
         self.variables.insert(name.clone(), val);
     }
 
     /// Retrieve the current value of the variable from the context, or an Error.
-    pub fn load(&self, name: String) -> ShyValue<'a> { 
+    pub fn load(&self, name: String) -> ShyValue { 
         match self.variables.get(&name) {
             Some(val) => val.clone(),
             None => ShyValue::error(format!("Name {} not found in context", name))
@@ -313,7 +319,7 @@ impl<'a> ExecutionContext<'a> {
     }
 
     /// Call a function that is stored in the context.
-    pub fn call(&self, function_name: String, args: ShyValue<'a>) -> ShyValue<'a> {
+    pub fn call(&self, function_name: String, args: ShyValue) -> ShyValue {
         match self.functions.get(&function_name) {
             Some(func) => func(args),
             None => ShyValue::error(format!("No function named {} in context", function_name))
@@ -327,7 +333,7 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
     fn from(initial_values: &HashMap<String,f64>) -> Self {
         let mut context = ExecutionContext::default();
         for (key, value) in &*initial_values {
-            let wrapped_value: ShyValue<'a> = (*value).into();
+            let wrapped_value: ShyValue = (*value).into();
             context.variables.insert(key.clone(), wrapped_value);
         }
         context
@@ -341,14 +347,15 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
 /// Compiled Expression that can be executed.
 #[derive(Debug)]
 pub struct Expression<'a> {
+    marker: PhantomData<&'a i64>,
     pub expression_source: String,
 
-    pub postfix_order: Vec<ShyToken<'a>>
+    pub postfix_order: Vec<ShyToken>
 }
 
 impl<'a> Expression<'a> {
-    pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue<'a>,String> {
-        let mut output_stack : Vec<ShyValue<'a>> = vec![];
+    pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
+        let mut output_stack : Vec<ShyValue> = vec![];
         for token in self.postfix_order.iter().cloned() {
             match token {
                 ShyToken::Value(value) => output_stack.push(value),
@@ -363,12 +370,12 @@ impl<'a> Expression<'a> {
     }
 
     /// Check if the stack has enough items to satisfy the needs of the operator
-    fn is_stack_size_sufficient(output_stack: &mut Vec<ShyValue<'a>>, op: ShyOperator) -> bool {
+    fn is_stack_size_sufficient(output_stack: &mut Vec<ShyValue>, op: ShyOperator) -> bool {
         op.arguments() >= output_stack.len() 
     }
 
     /// Check if the stack is topped by an error value
-    fn does_stack_have_error(output_stack: &mut Vec<ShyValue<'a>>) -> bool {
+    fn does_stack_have_error(output_stack: &mut Vec<ShyValue>) -> bool {
         match output_stack.last() {
             Some(ShyValue::Scalar(ShyScalar::Error(_))) => true,
             _ => false
@@ -376,7 +383,7 @@ impl<'a> Expression<'a> {
     }
 
     /// Apply an operator, removing tokens from the stack, computing a result, and pushing the result back on the stack.
-    fn operate(output_stack: &mut Vec<ShyValue<'a>>, op: ShyOperator, context: &mut ExecutionContext<'a>) {
+    fn operate(output_stack: &mut Vec<ShyValue>, op: ShyOperator, context: &mut ExecutionContext<'a>) {
         if Self::does_stack_have_error(output_stack) { return; }
         if Self::is_stack_size_sufficient(output_stack, op)   {
             output_stack.clear();
@@ -385,12 +392,12 @@ impl<'a> Expression<'a> {
         }
         // If a unary operator, arg1 is the sole argument. 
         // If a binary operator, arg1 is the left operand.
-        let mut arg1: Option<ShyValue<'a>> = None;
+        let mut arg1: Option<ShyValue> = None;
 
         // If a unary operator, arg2 is None.
         // If a binary operator, arg2 is the right operand.
-        let mut arg2: Option<ShyValue<'a>> = None;
-        let mut arg3: Option<ShyValue<'a>> = None;
+        let mut arg2: Option<ShyValue> = None;
+        let mut arg3: Option<ShyValue> = None;
         match op.arguments() {
             1 => {
                 arg1 = output_stack.pop();

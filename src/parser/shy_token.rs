@@ -8,6 +8,7 @@ use std::f64;
 use std::convert::TryFrom;
 use std::collections::HashSet;
 use std::cmp::Ordering;
+use regex::Regex;
 
 /*
     Data used in the ShuntingYard parser:
@@ -407,12 +408,12 @@ pub enum ShyScalar {
 ///   - The Variable and FunctionName variants are intermediate tokens on the output stack that will be
 ///     removed in the process of evaluating functions, or loading and storing values in the evaluation context.
 #[derive(Clone, PartialEq, Debug)]
-pub enum ShyValue<'a> {
+pub enum ShyValue {
     /// A scalar value
     Scalar(ShyScalar),
 
     /// A vector value
-    Vector(&'a[ShyScalar]),
+    Vector(Vec<ShyScalar>),
 
     /// Name of a variable in the context to be read from or written to.
     Variable(String),
@@ -422,7 +423,7 @@ pub enum ShyValue<'a> {
 }
 const TRUE_STRING: &str = "True";
 const FALSE_STRING: &str = "False";
-impl<'a> PartialOrd for ShyValue<'a> {
+impl PartialOrd for ShyValue {
 
     fn partial_cmp(&self, right_operand: &Self) -> Option<Ordering> {
         let t = &TRUE_STRING.to_string();
@@ -464,7 +465,7 @@ impl<'a> PartialOrd for ShyValue<'a> {
     }
 }
 
-impl<'a> From<ParserToken> for ShyValue<'a> {
+impl From<ParserToken> for ShyValue {
     fn from(parser_token: ParserToken) -> Self {
         match parser_token {
             ParserToken::Function(s) => ShyValue::FunctionName(s),
@@ -485,7 +486,7 @@ impl<'a> From<ParserToken> for ShyValue<'a> {
     }
 }
 
-impl<'a> ShyValue<'a> {
+impl ShyValue {
     pub fn error(message: String) -> Self {
         ShyValue::Scalar(ShyScalar::Error(message))
     }
@@ -828,39 +829,92 @@ impl<'a> ShyValue<'a> {
         ModAssign,
         AndAssign,
         OrAssign,
+        PostIncrement,
+        PostDecrement,
     */
 
     //..................................................................
 
-    // Miscellaneous Operators
+    // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
 
     /*
-        Comma,
         OpenBracket,
         CloseBracket,
-        Member,
-        PrefixPlusSign,
-        PrefixMinusSign,
-        Match,
-        NotMatch,
-        Ternary,
-        PostIncrement,
-        PostDecrement,
     */
+
+    /// Comma operator for ShyValues (combines arguments into a list).
+    /// The right_operand must be a ShyValue::Scalar.
+    /// If the left_operand is not a ShyValue::Vector, return a ShyValue::Vector containing both operands.
+    /// If the left_operand is a ShyValue::Vector, append a clone of the right_operand to a clone of that Vector.
+    /// Return a new Vector.
+    pub fn comma(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            (ShyValue::Vector(v), ShyValue::Scalar(right_scalar)) => {
+                let mut v_clone = v.clone();
+                v_clone.push(right_scalar.clone());
+                ShyValue::Vector(v_clone)
+            } ,
+            (ShyValue::Scalar(left_scalar), ShyValue::Scalar(right_scalar)) => {
+                ShyValue::Vector(vec![left_scalar.clone(), right_scalar.clone()])
+            },
+            _ => ShyValue::error(
+                format!("wrong type of arguments for comma operator: {} and {}", 
+                    left_operand.type_name(), 
+                    right_operand.type_name()))
+        }
+    }
+
+    /// Prefix plus of one ShyValue.
+    pub fn prefix_plus(left_operand: &Self) -> Self {
+        left_operand.clone()
+    }
+
+    /// Prefix minus of one ShyValue.
+    pub fn prefix_minus(left_operand: &Self) -> Self {
+        match *left_operand {
+            ShyValue::Scalar(ShyScalar::Integer(i)) => (-i).into(),
+            ShyValue::Scalar(ShyScalar::Rational(r)) => (-r).into(),
+            ShyValue::Scalar(ShyScalar::Boolean(b)) => (!b).into(),
+            _ => ShyValue::error("cannot negate a non-number".to_string())
+        }
+    }
+
+    /// Regex matching operator.
+    pub fn matches(left_operand: &Self, right_operand: &Self) -> Self {
+        match (left_operand, right_operand) {
+            (ShyValue::Scalar(ShyScalar::String(s)), ShyValue::Scalar(ShyScalar::String(regex_string))) => {
+                match Regex::new(regex_string) {
+                    Ok(regex) => {
+                        regex.is_match(s).into()
+                    },
+                    Err(_) => ShyValue::error(format!("malformed regular expression {}", regex_string))
+                }
+            } ,
+            _ => ShyValue::error(
+                format!("wrong type of arguments for matches operator: {} and {}", 
+                    left_operand.type_name(), 
+                    right_operand.type_name()))
+        }
+    }
+
+    /// Regex matching operator.
+    pub fn not_matches(left_operand: &Self, right_operand: &Self) -> Self {
+        ShyValue::not(&ShyValue::matches(left_operand, right_operand))
+    }
 }
 
 // Conversions from basic types to ShyValue
 
-impl<'a> From<f64> for ShyValue<'a> { fn from(x: f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(x)) } }
-impl<'a> From<&f64> for ShyValue<'a> { fn from(x: &f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(*x)) } }
-impl<'a> From<i64> for ShyValue<'a> { fn from(x: i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(x)) } }
-impl<'a> From<&i64> for ShyValue<'a> { fn from(x: &i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x)) } }
-impl<'a> From<i32> for ShyValue<'a> { fn from(x: i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(x as i64)) } }
-impl<'a> From<&i32> for ShyValue<'a> { fn from(x: &i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x as i64)) } }
-impl<'a> From<bool> for ShyValue<'a> { fn from(x: bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(x)) } }
-impl<'a> From<&bool> for ShyValue<'a> { fn from(x: &bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(*x)) } }
-impl<'a> From<String> for ShyValue<'a> { fn from(s: String) -> Self { ShyValue::Scalar(ShyScalar::String(s.clone())) } }
-impl<'a> From<&str> for ShyValue<'a> { fn from(s: &str) -> Self { ShyValue::Scalar(ShyScalar::String(s.to_string())) } }
+impl From<f64> for ShyValue { fn from(x: f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(x)) } }
+impl From<&f64> for ShyValue { fn from(x: &f64) -> Self { ShyValue::Scalar(ShyScalar::Rational(*x)) } }
+impl From<i64> for ShyValue { fn from(x: i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(x)) } }
+impl From<&i64> for ShyValue { fn from(x: &i64) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x)) } }
+impl From<i32> for ShyValue { fn from(x: i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(x as i64)) } }
+impl From<&i32> for ShyValue { fn from(x: &i32) -> Self { ShyValue::Scalar(ShyScalar::Integer(*x as i64)) } }
+impl From<bool> for ShyValue { fn from(x: bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(x)) } }
+impl From<&bool> for ShyValue { fn from(x: &bool) -> Self { ShyValue::Scalar(ShyScalar::Boolean(*x)) } }
+impl From<String> for ShyValue { fn from(s: String) -> Self { ShyValue::Scalar(ShyScalar::String(s.clone())) } }
+impl From<&str> for ShyValue { fn from(s: &str) -> Self { ShyValue::Scalar(ShyScalar::String(s.to_string())) } }
 
 
 //..................................................................
@@ -871,22 +925,22 @@ impl<'a> From<&str> for ShyValue<'a> { fn from(s: &str) -> Self { ShyValue::Scal
 ///   - The OperatorWithValue (used for Functions and Power) will be split into 
 ///     a Value token (the Function name) and an Operator token (the function invocation).
 #[derive(Clone, PartialEq, Debug)]
-pub enum ShyToken<'a> {
-    Value(ShyValue<'a>),
+pub enum ShyToken{
+    Value(ShyValue),
     Operator(ShyOperator),
-    OperatorWithValue(ShyOperator, ShyValue<'a>),
+    OperatorWithValue(ShyOperator, ShyValue),
     Error,
     None
 }
 
-impl<'a> ShyToken<'a> {
+impl ShyToken{
     pub fn is_error(&self) -> bool {
         discriminant(&ShyToken::Error) == discriminant(self)
     }
 }
 
 /// Convert a ParserToken into a ShyToken.
-impl<'a> From<ParserToken> for ShyToken<'a> {
+impl From<ParserToken> for ShyToken{
     fn from(parser_token: ParserToken) -> Self {
         let op: ShyOperator = parser_token.clone().into();
         match op {
@@ -1177,18 +1231,62 @@ mod tests {
         binary_operator_test(&7.14.into(), &7.15.into(), &true.into(), &ShyValue::less_than);
     }
 
+    #[test]
+    /// Test greater than operator.
+    fn shyvalue_greater_than() {
+        binary_operator_test(&1.into(), &2.into(), &false.into(), &ShyValue::greater_than);
+        binary_operator_test(&4.5.into(), &4.into(), &true.into(), &ShyValue::greater_than);
+        binary_operator_test(&7.14.into(), &7.15.into(), &false.into(), &ShyValue::greater_than);
+        binary_operator_test(&"Apple".into(), &"Adam".into(), &true.into(), &ShyValue::greater_than);
+    }
+
+    #[test]
+    /// Test comma operator.
+    fn shyvalue_comma() {
+        let a: ShyValue = 5.into();
+        let b: ShyValue = 2.75.into();
+        let ab = ShyValue::comma(&a, &b);
+        match ab {
+            ShyValue::Vector(v) => {
+                if let &[ShyScalar::Integer(aa), ShyScalar::Rational(bb)] = &*v {
+                    asserting("First operand").that(&aa).is_equal_to(5_i64);
+                    asserting("Second operand").that(&bb).is_equal_to(2.75_f64);
+                } else {
+                    assert!(false, "Not a Vec with an integer and a rational element");
+                }
+            },
+            _ => assert!(false, "Not a Vec")
+        }
+    }
+
+    #[test]
+    /// Test prefix minus operator.
+    fn shyvalue_prefix_minus() {
+        unary_operator_test(&1.into(), &(-1).into(), &ShyValue::prefix_minus);
+        unary_operator_test(&true.into(), &false.into(), &ShyValue::prefix_minus);
+        unary_operator_test(&(-11.11).into(), &11.11.into(), &ShyValue::prefix_minus);
+        assert!(&ShyValue::prefix_minus(&ShyValue::error("An error".to_string())).is_error());
+    }
+
+    #[test]
+    /// Test matches operator.
+    fn shyvalue_matches() {
+        binary_operator_test(&"Hello World".into(), &"el+o".into(), &true.into(), &ShyValue::matches);
+        binary_operator_test(&"Hello World".into(), &"^e".into(), &false.into(), &ShyValue::matches);
+    }   
+
     // ...................................................................................
 
     // Test helpers
 
     /// Test a binary operator
-    fn binary_operator_test<'a>(left: &ShyValue<'a>, right: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>, &ShyValue<'a>) -> ShyValue<'a>) {
+    fn binary_operator_test<'a>(left: &ShyValue, right: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue, &ShyValue) -> ShyValue) {
         let actual = op(left, right);
         asserting(&format!("Operation on {:?} and {:?} should yield {:?}", left, right, expected)).that(&actual).is_equal_to(expected);
     }
 
     /// Test a unary operator
-    fn unary_operator_test<'a>(left: &ShyValue<'a>, expected: &ShyValue<'a>, op: &Fn(&ShyValue<'a>) -> ShyValue<'a>) {
+    fn unary_operator_test<'a>(left: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue) -> ShyValue) {
         let actual = op(left);
         asserting(&format!("Operation on {:?} should yield {:?}", left, expected)).that(&actual).is_equal_to(expected);
     }

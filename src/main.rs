@@ -4,6 +4,7 @@
 extern crate itertools;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate enum_derive;
+extern crate regex;
 
 #[macro_use]
 extern crate lazy_static;
