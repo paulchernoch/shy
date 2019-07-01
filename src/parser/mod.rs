@@ -10,14 +10,16 @@ use crate::lexer::Lexer;
 
 pub mod shy_token;
 #[allow(unused_imports)]
-use shy_token::Associativity;
 use shy_token::ShyToken;
-use shy_token::ShyOperator;
 use shy_token::ShyValue;
 use shy_token::ShyScalar;
 
 pub mod factorial;
+pub mod associativity;
+use associativity::Associativity;
 
+pub mod shy_operator;
+use shy_operator::ShyOperator;
 
 //..................................................................
 
