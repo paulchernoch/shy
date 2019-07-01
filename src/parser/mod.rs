@@ -16,6 +16,8 @@ use shy_token::ShyOperator;
 use shy_token::ShyValue;
 use shy_token::ShyScalar;
 
+pub mod factorial;
+
 
 //..................................................................
 

@@ -16,6 +16,7 @@ extern crate spectral;
 mod parser;
 
 mod lexer;
+
 use lexer::Lexer;
 //use lexer::lexer_state::LexerState;
 #[allow(unused_imports)]
