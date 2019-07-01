@@ -1,5 +1,4 @@
 
-use super::shy_token::ShyValue;
 use super::associativity::Associativity;
 use crate::lexer::ParserToken;
 

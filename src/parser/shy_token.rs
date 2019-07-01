@@ -12,6 +12,7 @@ use regex::Regex;
 use super::factorial::factorial;
 use super::factorial::factorial_approx;
 use super::shy_operator::ShyOperator;
+use super::execution_context::ExecutionContext;
 
 /*
     Data used in the ShuntingYard parser:
@@ -490,20 +491,30 @@ impl ShyValue {
 
     //..................................................................
 
-    // Assignment Operators
-
     /*
-        Assign,
-        PlusAssign,
-        MinusAssign,
-        MultiplyAssign,
-        DivideAssign,
-        ModAssign,
-        AndAssign,
-        OrAssign,
-        PostIncrement,
-        PostDecrement,
-    */
+       Assignment Operators: 
+       
+       assign (=)
+       plus_assign (+=)
+       minus_assign (-=)
+       multiply_assign (*=)
+       divide_assign (/=)
+       mod_assign (%=)
+       and_assign (&&=)
+       or_assign (||=)
+       post_increment (++)
+       post_decrement (--)
+    */ 
+    
+    pub fn assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                ctx.store(name, right_operand.clone());
+                right_operand.clone()
+            },
+            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+        }
+    }
 
     //..................................................................
 
@@ -910,6 +921,17 @@ mod tests {
         binary_operator_test(&4.5.into(), &4.into(), &true.into(), &ShyValue::greater_than);
         binary_operator_test(&7.14.into(), &7.15.into(), &false.into(), &ShyValue::greater_than);
         binary_operator_test(&"Apple".into(), &"Adam".into(), &true.into(), &ShyValue::greater_than);
+    }
+
+    #[test]
+    /// Test assign operator. 
+    fn shyvalue_assign() {
+        let mut ctx = ExecutionContext::default();
+        let var_name : ShyValue = ShyValue::Variable("x".to_string());
+        let val : ShyValue = 10.into();
+        let result = ShyValue::assign(&var_name, &val, &mut ctx);
+        asserting("Return value matches").that(&result).is_equal_to(&10.into());
+        asserting("Stored value matches").that(&ctx.load("x".to_string())).is_equal_to(&10.into());
     }
 
     #[test]
