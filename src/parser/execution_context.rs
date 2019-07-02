@@ -93,11 +93,11 @@ impl<'a> ExecutionContext<'a> {
         self.variables.insert(name.clone(), val);
     }
 
-    /// Retrieve the current value of the variable from the context, or an Error.
-    pub fn load(&self, name: String) -> ShyValue { 
-        match self.variables.get(&name) {
-            Some(val) => val.clone(),
-            None => ShyValue::error(format!("Name {} not found in context", name))
+    /// Retrieve the current value of the variable from the context, or None.
+    pub fn load(&self, name: &String) -> Option<ShyValue> { 
+        match self.variables.get(name) {
+            Some(val) => Some(val.clone()),
+            None => None
         }
     }
 

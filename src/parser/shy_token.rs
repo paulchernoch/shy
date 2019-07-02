@@ -516,6 +516,29 @@ impl ShyValue {
         }
     }
 
+    /// Add the right_operand to the current value of the variable in the context (ctx) 
+    /// referenced by the left_operand and store the result back in the context as the 
+    /// new value for that variable.
+    /// If the variable is not defined, initialize it to the value of the right_operand.
+    pub fn plus_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let sum = ShyValue::add(&current, right_operand);
+                        ctx.store(name, sum.clone());
+                        sum
+                    },
+                    None => {
+                        ctx.store(name, right_operand.clone());
+                        right_operand.clone()
+                    }
+                }
+            },
+            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+        }
+    }
     //..................................................................
 
     // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
@@ -926,12 +949,26 @@ mod tests {
     #[test]
     /// Test assign operator. 
     fn shyvalue_assign() {
+        assignment_operator_test(
+            &ShyValue::Variable("x".to_string()), 
+            &10.into(), 
+            &mut ExecutionContext::default(), 
+            &10.into(), 
+            &ShyValue::assign);
+    }
+
+    #[test]
+    /// Test plus_assign operator. 
+    fn shyvalue_plus_assign() {
         let mut ctx = ExecutionContext::default();
-        let var_name : ShyValue = ShyValue::Variable("x".to_string());
-        let val : ShyValue = 10.into();
-        let result = ShyValue::assign(&var_name, &val, &mut ctx);
-        asserting("Return value matches").that(&result).is_equal_to(&10.into());
-        asserting("Stored value matches").that(&ctx.load("x".to_string())).is_equal_to(&10.into());
+        let x = "x".to_string();
+        ctx.store(&x, 10.into());
+        assignment_operator_test(
+            &ShyValue::Variable(x), 
+            &1.into(), 
+            &mut ctx, 
+            &11.into(), 
+            &ShyValue::plus_assign);
     }
 
     #[test]
@@ -973,7 +1010,7 @@ mod tests {
 
     // Test helpers
 
-    /// Test a binary operator
+    /// Test a binary operator (excluding assignment)
     fn binary_operator_test<'a>(left: &ShyValue, right: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue, &ShyValue) -> ShyValue) {
         let actual = op(left, right);
         asserting(&format!("Operation on {:?} and {:?} should yield {:?}", left, right, expected)).that(&actual).is_equal_to(expected);
@@ -983,5 +1020,25 @@ mod tests {
     fn unary_operator_test<'a>(left: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue) -> ShyValue) {
         let actual = op(left);
         asserting(&format!("Operation on {:?} should yield {:?}", left, expected)).that(&actual).is_equal_to(expected);
+    }
+
+    fn assignment_operator_test<'a>(
+        left: &ShyValue, 
+        right: &ShyValue, 
+        ctx: &mut ExecutionContext, 
+        expected: &ShyValue, 
+        op: &Fn(&ShyValue, &ShyValue, &mut ExecutionContext) -> ShyValue) {
+
+
+        let result = op(left, right, ctx);
+        asserting("Return value matches").that(&result).is_equal_to(expected);
+
+        match left {
+            ShyValue::Variable(var_name) => {
+                asserting("Stored value matches").that(&ctx.load(var_name).unwrap()).is_equal_to(expected);
+            },
+            _ => assert!(false, "left operand is not a variable")
+        }
+        
     }
 }
