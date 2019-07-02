@@ -624,6 +624,56 @@ impl ShyValue {
         Self::common_assign(left_operand, right_operand, ctx, &Self::or)
     }
 
+    /// Increment by one the value loaded from the context for the variable indicated by left_operand,
+    /// store the incremented value back in the context under the same variable,
+    /// and return the value it held prior to the increment operation.
+    /// If the variable was previously uninitialized, pretend that it started with the value zero,
+    /// return zero, and store a one.
+    pub fn post_increment(left_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let result = ShyValue::add(&current, &1.into());
+                        ctx.store(name, result.clone());
+                        current
+                    },
+                    None => {
+                        ctx.store(name, 1.into());
+                        0.into()
+                    }
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
+    /// Decrement by one the value loaded from the context for the variable indicated by left_operand,
+    /// store the decremented value back in the context under the same variable,
+    /// and return the value it held prior to the decrement operation.
+    /// If the variable was previously uninitialized, return an error wrapped in a ShyValue.
+    pub fn post_decrement(left_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let result = ShyValue::subtract(&current, &1.into());
+                        ctx.store(name, result.clone());
+                        current
+                    },
+                    None => {
+                        let result = ShyValue::error(format!("Uninitialized variable {}", name));
+                        ctx.store(name, result.clone());
+                        result
+                    }
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
     /// Load a value from the context corresponding to the variable named by the left_operand,
     /// then perform "op" (a given operation) between that value and the right_operand.
     /// Store the result in the context for the same variable.
@@ -1162,6 +1212,29 @@ mod tests {
     }
 
     #[test]
+    /// Test post_increment operator. 
+    fn shyvalue_post_increment() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        let x_var = &ShyValue::Variable(x.clone());
+        post_operator_test(x_var, &mut ctx, &0.into(), &1.into(), &ShyValue::post_increment);
+        post_operator_test(x_var, &mut ctx, &1.into(), &2.into(), &ShyValue::post_increment);
+        post_operator_test(x_var, &mut ctx, &2.into(), &3.into(), &ShyValue::post_increment);
+    }
+
+    #[test]
+    /// Test post_decrement operator. 
+    fn shyvalue_post_decrement() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        let x_var = &ShyValue::Variable(x.clone());
+        ctx.store(&x, 3.into());
+        post_operator_test(x_var, &mut ctx, &3.into(), &2.into(), &ShyValue::post_decrement);
+        post_operator_test(x_var, &mut ctx, &2.into(), &1.into(), &ShyValue::post_decrement);
+        post_operator_test(x_var, &mut ctx, &1.into(), &0.into(), &ShyValue::post_decrement);
+    }
+
+    #[test]
     /// Test comma operator.
     fn shyvalue_comma() {
         let a: ShyValue = 5.into();
@@ -1212,23 +1285,29 @@ mod tests {
         asserting(&format!("Operation on {:?} should yield {:?}", left, expected)).that(&actual).is_equal_to(expected);
     }
 
-    fn assignment_operator_test<'a>(
-        left: &ShyValue, 
-        right: &ShyValue, 
-        ctx: &mut ExecutionContext, 
-        expected: &ShyValue, 
-        op: &Fn(&ShyValue, &ShyValue, &mut ExecutionContext) -> ShyValue) {
-
-
+    fn assignment_operator_test<'a>(left: &ShyValue, right: &ShyValue, 
+            ctx: &mut ExecutionContext, expected: &ShyValue, 
+            op: &Fn(&ShyValue, &ShyValue, &mut ExecutionContext) -> ShyValue) {
         let result = op(left, right, ctx);
         asserting("Return value matches").that(&result).is_equal_to(expected);
-
         match left {
             ShyValue::Variable(var_name) => {
                 asserting("Stored value matches").that(&ctx.load(var_name).unwrap()).is_equal_to(expected);
             },
             _ => assert!(false, "left operand is not a variable")
         }
-        
+    }
+
+    fn post_operator_test<'a>(left: &ShyValue, 
+            ctx: &mut ExecutionContext, expected_result: &ShyValue, expected_store: &ShyValue,
+            op: &Fn(&ShyValue, &mut ExecutionContext) -> ShyValue) {
+        let result = op(left, ctx);
+        asserting("Return value matches").that(&result).is_equal_to(expected_result);
+        match left {
+            ShyValue::Variable(var_name) => {
+                asserting("Stored value matches").that(&ctx.load(var_name).unwrap()).is_equal_to(expected_store);
+            },
+            _ => assert!(false, "left operand is not a variable")
+        }
     }
 }
