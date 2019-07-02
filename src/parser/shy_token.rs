@@ -597,6 +597,49 @@ impl ShyValue {
         }
     }
 
+    /// Divide a value loaded from the context by the right_operand.
+    /// If no value has yet been stored for that variable, set the value to the inverse of the right_operand,
+    /// as if the value was originally one.
+    pub fn divide_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let quotient = ShyValue::divide(&current, right_operand);
+                        ctx.store(name, quotient.clone());
+                        quotient
+                    },
+                    None => {
+                        let quotient = ShyValue::divide(&1_i64.into(), right_operand);
+                        ctx.store(name, quotient.clone());
+                        quotient.clone()
+                    }
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
+    /// Perform the modular division of a value loaded from the context by the right_operand.
+    /// If no value has yet been stored for that variable, return an error wrapped by a ShyValue.
+    pub fn modulo_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let remainder = ShyValue::modulo(&current, right_operand);
+                        ctx.store(name, remainder.clone());
+                        remainder
+                    },
+                    None => ShyValue::error(format!("No such variable named {}", name))
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
     //..................................................................
 
     // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
@@ -1055,6 +1098,34 @@ mod tests {
             &mut ctx, 
             &42.into(), 
             &ShyValue::multiply_assign);
+    }
+
+    #[test]
+    /// Test divide_assign operator. 
+    fn shyvalue_divide_assign() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        ctx.store(&x, 6.into());
+        assignment_operator_test(
+            &ShyValue::Variable(x), 
+            &24.into(), 
+            &mut ctx, 
+            &0.25.into(), 
+            &ShyValue::divide_assign);
+    }
+
+    #[test]
+    /// Test modulo_assign operator. 
+    fn shyvalue_modulo_assign() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        ctx.store(&x, 21.into());
+        assignment_operator_test(
+            &ShyValue::Variable(x), 
+            &6.into(), 
+            &mut ctx, 
+            &3.into(), 
+            &ShyValue::modulo_assign);
     }
 
     #[test]
