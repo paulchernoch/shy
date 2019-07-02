@@ -250,16 +250,6 @@ impl ShyValue {
     // Methods to perform operations
     // Note: They will not load a Variable value from the context. Caller must take care of that first.
 
-    /// Compute the additive inverse of the value (multiply by negative one).
-    pub fn negate(right_operand: &Self) -> Self {
-        match right_operand {
-            ShyValue::Scalar(ShyScalar::Boolean(b)) => (!b).into(),
-            ShyValue::Scalar(ShyScalar::Integer(i)) => (-i).into(),
-            ShyValue::Scalar(ShyScalar::Rational(r)) => (-r).into(),
-            _ => ShyValue::error(format!("cannot negate operand of type {}", right_operand.type_name()))
-        }
-    }
-
     /// Add two ShyValues.
     pub fn add(left_operand: &Self, right_operand: &Self) -> Self {
         match (left_operand, right_operand) {
@@ -548,7 +538,7 @@ impl ShyValue {
                         difference
                     },
                     None => {
-                        let negation = ShyValue::negate(right_operand);
+                        let negation = ShyValue::prefix_minus(right_operand);
                         ctx.store(name, negation.clone());
                         negation
                     }
