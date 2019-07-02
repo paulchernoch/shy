@@ -250,6 +250,16 @@ impl ShyValue {
     // Methods to perform operations
     // Note: They will not load a Variable value from the context. Caller must take care of that first.
 
+    /// Compute the additive inverse of the value (multiply by negative one).
+    pub fn negate(right_operand: &Self) -> Self {
+        match right_operand {
+            ShyValue::Scalar(ShyScalar::Boolean(b)) => (!b).into(),
+            ShyValue::Scalar(ShyScalar::Integer(i)) => (-i).into(),
+            ShyValue::Scalar(ShyScalar::Rational(r)) => (-r).into(),
+            _ => ShyValue::error(format!("cannot negate operand of type {}", right_operand.type_name()))
+        }
+    }
+
     /// Add two ShyValues.
     pub fn add(left_operand: &Self, right_operand: &Self) -> Self {
         match (left_operand, right_operand) {
@@ -539,6 +549,28 @@ impl ShyValue {
             _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
         }
     }
+
+    pub fn minus_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let difference = ShyValue::subtract(&current, right_operand);
+                        ctx.store(name, difference.clone());
+                        difference
+                    },
+                    None => {
+                        let negation = ShyValue::negate(right_operand);
+                        ctx.store(name, negation.clone());
+                        negation
+                    }
+                }
+            },
+            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+        }
+    }
+
     //..................................................................
 
     // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
@@ -969,6 +1001,20 @@ mod tests {
             &mut ctx, 
             &11.into(), 
             &ShyValue::plus_assign);
+    }
+
+    #[test]
+    /// Test minus_assign operator. 
+    fn shyvalue_minus_assign() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        ctx.store(&x, 10.5.into());
+        assignment_operator_test(
+            &ShyValue::Variable(x), 
+            &1.into(), 
+            &mut ctx, 
+            &9.5.into(), 
+            &ShyValue::minus_assign);
     }
 
     #[test]
