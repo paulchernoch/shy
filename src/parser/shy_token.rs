@@ -515,6 +515,9 @@ impl ShyValue {
        post_increment (++)
        post_decrement (--)
     */ 
+    fn not_a_variable(left_operand: &Self) -> Self {
+        ShyValue::error(format!("Left operand must be a variable, not {}", left_operand.type_name()))
+    }
     
     pub fn assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
         match left_operand {
@@ -522,7 +525,7 @@ impl ShyValue {
                 ctx.store(name, right_operand.clone());
                 right_operand.clone()
             },
-            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+            _ => Self::not_a_variable(left_operand)
         }
     }
 
@@ -546,7 +549,7 @@ impl ShyValue {
                     }
                 }
             },
-            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+            _ => Self::not_a_variable(left_operand)
         }
     }
 
@@ -567,7 +570,30 @@ impl ShyValue {
                     }
                 }
             },
-            _ => ShyValue::error(format!("Expected left operand to be a variable name, instead received {}", left_operand.type_name()))
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
+    /// Multiply a value loaded from the context by the right_operand.
+    /// If no value has yet been stored for that variable, set the value to the right_operand,
+    /// as if the value was originally one.
+    pub fn multiply_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let product = ShyValue::multiply(&current, right_operand);
+                        ctx.store(name, product.clone());
+                        product
+                    },
+                    None => {
+                        ctx.store(name, right_operand.clone());
+                        right_operand.clone()
+                    }
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
         }
     }
 
@@ -1015,6 +1041,20 @@ mod tests {
             &mut ctx, 
             &9.5.into(), 
             &ShyValue::minus_assign);
+    }
+
+    #[test]
+    /// Test multiply_assign operator. 
+    fn shyvalue_multiply_assign() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        ctx.store(&x, 6.into());
+        assignment_operator_test(
+            &ShyValue::Variable(x), 
+            &7.into(), 
+            &mut ctx, 
+            &42.into(), 
+            &ShyValue::multiply_assign);
     }
 
     #[test]
