@@ -534,23 +534,7 @@ impl ShyValue {
     /// new value for that variable.
     /// If the variable is not defined, initialize it to the value of the right_operand.
     pub fn plus_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
-        match left_operand {
-            ShyValue::Variable(name) => {
-                let current_value = ctx.load(name);
-                match current_value {
-                    Some(current) => {
-                        let sum = ShyValue::add(&current, right_operand);
-                        ctx.store(name, sum.clone());
-                        sum
-                    },
-                    None => {
-                        ctx.store(name, right_operand.clone());
-                        right_operand.clone()
-                    }
-                }
-            },
-            _ => Self::not_a_variable(left_operand)
-        }
+        Self::common_assign(left_operand, right_operand, ctx, &Self::add)
     }
 
     pub fn minus_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
@@ -578,23 +562,7 @@ impl ShyValue {
     /// If no value has yet been stored for that variable, set the value to the right_operand,
     /// as if the value was originally one.
     pub fn multiply_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
-        match left_operand {
-            ShyValue::Variable(name) => {
-                let current_value = ctx.load(name);
-                match current_value {
-                    Some(current) => {
-                        let product = ShyValue::multiply(&current, right_operand);
-                        ctx.store(name, product.clone());
-                        product
-                    },
-                    None => {
-                        ctx.store(name, right_operand.clone());
-                        right_operand.clone()
-                    }
-                }
-            },
-            _ => Self::not_a_variable(left_operand)
-        }
+        Self::common_assign(left_operand, right_operand, ctx, &Self::multiply)
     }
 
     /// Divide a value loaded from the context by the right_operand.
@@ -645,23 +613,7 @@ impl ShyValue {
     /// Store the result in the context for the same variable.
     /// If the variable is not initially defined, initialize it to the value of the right_operand.
     pub fn and_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
-        match left_operand {
-            ShyValue::Variable(name) => {
-                let current_value = ctx.load(name);
-                match current_value {
-                    Some(current) => {
-                        let result = ShyValue::and(&current, right_operand);
-                        ctx.store(name, result.clone());
-                        result
-                    },
-                    None => {
-                        ctx.store(name, right_operand.clone());
-                        right_operand.clone()
-                    }
-                }
-            },
-            _ => Self::not_a_variable(left_operand)
-        }
+        Self::common_assign(left_operand, right_operand, ctx, &Self::and)
     }
 
     /// Load a value from the context corresponding to the variable named by the left_operand,
@@ -669,12 +621,21 @@ impl ShyValue {
     /// Store the result in the context for the same variable.
     /// If the variable is not initially defined, initialize it to the value of the right_operand.
     pub fn or_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        Self::common_assign(left_operand, right_operand, ctx, &Self::or)
+    }
+
+    /// Load a value from the context corresponding to the variable named by the left_operand,
+    /// then perform "op" (a given operation) between that value and the right_operand.
+    /// Store the result in the context for the same variable.
+    /// If the variable is not initially defined, initialize it to the value of the right_operand.
+    fn common_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext, 
+        op: &Fn(&Self, &Self) -> Self) -> Self {
         match left_operand {
             ShyValue::Variable(name) => {
                 let current_value = ctx.load(name);
                 match current_value {
                     Some(current) => {
-                        let result = ShyValue::or(&current, right_operand);
+                        let result = op(&current, right_operand);
                         ctx.store(name, result.clone());
                         result
                     },
