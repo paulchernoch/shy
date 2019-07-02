@@ -664,6 +664,30 @@ impl ShyValue {
         }
     }
 
+    /// Load a value from the context corresponding to the variable named by the left_operand,
+    /// then perform a logical "or" operation between that value and the right_operand.
+    /// Store the result in the context for the same variable.
+    /// If the variable is not initially defined, initialize it to the value of the right_operand.
+    pub fn or_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                let current_value = ctx.load(name);
+                match current_value {
+                    Some(current) => {
+                        let result = ShyValue::or(&current, right_operand);
+                        ctx.store(name, result.clone());
+                        result
+                    },
+                    None => {
+                        ctx.store(name, right_operand.clone());
+                        right_operand.clone()
+                    }
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
     //..................................................................
 
     // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
@@ -1162,6 +1186,18 @@ mod tests {
         assignment_operator_test(x_var, &true.into(), &mut ctx, &true.into(), &ShyValue::and_assign);
         assignment_operator_test(x_var, &false.into(), &mut ctx, &false.into(), &ShyValue::and_assign);
         assignment_operator_test(x_var, &true.into(), &mut ctx, &false.into(), &ShyValue::and_assign);
+    }
+
+    #[test]
+    /// Test or_assign operator. 
+    fn shyvalue_or_assign() {
+        let mut ctx = ExecutionContext::default();
+        let x = "x".to_string();
+        let x_var = &ShyValue::Variable(x.clone());
+        ctx.store(&x, false.into());
+        assignment_operator_test(x_var, &false.into(), &mut ctx, &false.into(), &ShyValue::or_assign);
+        assignment_operator_test(x_var, &true.into(), &mut ctx, &true.into(), &ShyValue::or_assign);
+        assignment_operator_test(x_var, &false.into(), &mut ctx, &true.into(), &ShyValue::or_assign);
     }
 
     #[test]
