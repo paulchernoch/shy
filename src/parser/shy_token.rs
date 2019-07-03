@@ -491,6 +491,25 @@ impl ShyValue {
 
     //..................................................................
 
+    // Load operator
+
+    /// Load the value of a variable from the context.
+    /// Return an error (ShyValue::Error) if the left_operand is not a Variable 
+    /// or no variable with the given name is found in the context.
+    pub fn load(left_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::Variable(name) => {
+                match ctx.load(name) {
+                    Some(value) => value,
+                    None => Self::no_such_variable(name)
+                }
+            },
+            _ => Self::not_a_variable(left_operand)
+        }
+    }
+
+    //..................................................................
+
     /*
        Assignment Operators: 
        
@@ -505,8 +524,13 @@ impl ShyValue {
        post_increment (++)
        post_decrement (--)
     */ 
+
     fn not_a_variable(left_operand: &Self) -> Self {
         ShyValue::error(format!("Left operand must be a variable, not {}", left_operand.type_name()))
+    }
+
+    fn no_such_variable(var_name: &String) -> Self {
+        ShyValue::error(format!("No variable named {}", var_name))
     }
     
     pub fn assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
@@ -704,8 +728,6 @@ impl ShyValue {
             ShyValue::FunctionName(name) => ctx.call(name.clone(), right_operand.clone()),
             _ => ShyValue::error(format!("Cannot call a function because the name is type {}", left_operand.type_name()))
         }
-        
-        
     }
 
     /// Comma operator for ShyValues (combines arguments into a list).
@@ -832,6 +854,11 @@ impl From<ParserToken> for ShyToken{
     }
 }
 
+impl From<ShyOperator> for ShyToken {
+    fn from(op: ShyOperator) -> Self {
+        ShyToken::Operator(op)
+    }
+}
 
 //..................................................................
 

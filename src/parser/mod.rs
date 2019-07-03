@@ -340,7 +340,7 @@ impl<'a> Expression<'a> {
         }
         let unimplemented = ShyValue::error(format!("Operation {} unimplemented", op.to_string()));
         let result = match op {
-            ShyOperator::Load => unimplemented,
+            ShyOperator::Load => ShyValue::load(&arg1, context),
             ShyOperator::Store => unimplemented,
             ShyOperator::Semicolon => unimplemented,
             ShyOperator::FunctionCall => ShyValue::call(&arg1, &arg2, context),
@@ -499,11 +499,11 @@ mod tests {
             "!(a || b)", 
             vec![
             ShyToken::Value(ShyValue::Variable("a".to_string())),
-            ShyToken::Operator(ShyOperator::Load),
+            ShyOperator::Load.into(),
             ShyToken::Value(ShyValue::Variable("b".to_string())),
-            ShyToken::Operator(ShyOperator::Load),
-            ShyToken::Operator(ShyOperator::Or),
-            ShyToken::Operator(ShyOperator::LogicalNot),
+            ShyOperator::Load.into(),
+            ShyOperator::Or.into(),
+            ShyOperator::LogicalNot.into(),
         ]);
     }
 
@@ -513,15 +513,15 @@ mod tests {
             r#"name ~ /^Paul/ && color == "blue""#, 
             vec![
             ShyToken::Value(ShyValue::Variable("name".to_string())),
-            ShyToken::Operator(ShyOperator::Load),
+            ShyOperator::Load.into(),
             // TODO: Implement ShyScalar::Regex
             ShyToken::Value(ShyValue::Scalar(ShyScalar::String("^Paul".to_string()))),
-            ShyToken::Operator(ShyOperator::Match),
+            ShyOperator::Match.into(),
             ShyToken::Value(ShyValue::Variable("color".to_string())),
-            ShyToken::Operator(ShyOperator::Load),
+            ShyOperator::Load.into(),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::String("blue".to_string()))),
-            ShyToken::Operator(ShyOperator::Equals),
-            ShyToken::Operator(ShyOperator::And),
+            ShyOperator::Equals.into(),
+            ShyOperator::And.into(),
         ]);
     }
 
@@ -534,11 +534,11 @@ mod tests {
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Rational(0.5))),
             ShyToken::Value(ShyValue::FunctionName("sin".to_string())),
             ShyToken::Value(ShyValue::Variable("π".to_string())),
-            ShyToken::Operator(ShyOperator::Load),
+            ShyOperator::Load.into(),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(6))),
-            ShyToken::Operator(ShyOperator::Divide),
-            ShyToken::Operator(ShyOperator::FunctionCall),
-            ShyToken::Operator(ShyOperator::Add),
+            ShyOperator::Divide.into(),
+            ShyOperator::FunctionCall.into(),
+            ShyOperator::Add.into(),
         ]);
     }
 
@@ -551,10 +551,10 @@ mod tests {
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(3))),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(2))),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(10))),
-            ShyToken::Operator(ShyOperator::Exponentiation),
-            ShyToken::Operator(ShyOperator::Multiply),
+            ShyOperator::Exponentiation.into(),
+            ShyOperator::Multiply.into(),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(5))),
-            ShyToken::Operator(ShyOperator::Divide),
+            ShyOperator::Divide.into(),
         ]);
     }
 
@@ -566,10 +566,10 @@ mod tests {
             vec![
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(3))),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(2))),
-            ShyToken::Operator(ShyOperator::SquareRoot),
-            ShyToken::Operator(ShyOperator::Multiply),
+            ShyOperator::SquareRoot.into(),
+            ShyOperator::Multiply.into(),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(5))),
-            ShyToken::Operator(ShyOperator::Divide),
+            ShyOperator::Divide.into(),
         ]);
     }
 
