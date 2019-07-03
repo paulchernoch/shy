@@ -103,6 +103,14 @@ impl<'a> ShuntingYard<'a> {
         // Need to clone infix_order to placate the borrow-checker, otherwise I cannot call the reduce method.
         let infix_order_copy = self.infix_order.clone();
         for stoken in infix_order_copy.iter() {
+            // Variable Rule: Check for rvalues on postfix-ordered output stack.
+            //                If we find an rvalue, push a Load operator onto the postfix-ordered output stack.
+            //                Variable values must be loaded from context before the other operators can act upon them. 
+            //                Only the assignment, post-increment and post-decrement operators perform their own 
+            //                loading from and saving to the context.
+            if self.is_rvalue_on_stack(&stoken) {
+                self.postfix_order.push(ShyToken::Operator(ShyOperator::Load));
+            }
             match stoken {
                 // Value Rule: Values are immediately copied to the postfix-ordered output stack.
                 ShyToken::Value(_) => self.postfix_order.push(stoken.clone()),
@@ -129,7 +137,16 @@ impl<'a> ShuntingYard<'a> {
 
                 // TODO: Handle Unary operators.
 
-                // TODO: Handle Load / Store of variables.
+                // Variable Rule: First, push the Variable token onto the postfix-ordered output stack.
+                //                Second, if the next token in infix order is NOT an assignment operator,
+                //                push a Load operator onto the postfix-ordered output stack.
+                //                Of course, we can't look ahead, so we need to add that check above
+                //                to run in the next iteration of the loop
+                //                and look backwards. Thus if the current token is NOT an assignment operator,
+                //                and the top of the postfix_order stack is a Variable, then add a Load operator.
+                ShyToken::Value(ShyValue::Variable(var_name)) => {
+                    self.postfix_order.push(stoken.clone())
+                },
 
                 // Precedence & Associativity Rules:
                 ShyToken::Operator(op) => {
@@ -171,6 +188,24 @@ impl<'a> ShuntingYard<'a> {
             }
         }
         Ok(self.postfix_order.len())
+    }
+
+    /// Decide if the top of the postfix_order stack is a Variable AND it should be considered 
+    /// an rvalue whose value should be loaded from context,
+    /// not an lvalue into which a result should be stored.
+    /// If an rvalue, we should push a Load operator token onto postfix_order. (Pushing Load is not done here.)
+    /// It is an rvalue if the top of the stack holds a ShyToken::Value(ShyValue::Variable) 
+    /// and the given stoken is NOT an assignment operator or post-increment or post-decrement operator.
+    fn is_rvalue_on_stack(&self, stoken: &ShyToken) -> bool {
+        match &self.postfix_order.last() {
+            Some(ShyToken::Value(ShyValue::Variable(_))) => {
+                match stoken {
+                    ShyToken::Operator(op) if !op.is_assignment() => { true }, // Top of stack is a Variable used as an rvalue
+                    _ => false // Token is not an operator (unlikely) or is an assignment operator (making the variable an lvalue) 
+                }
+            },
+            _ => false // Top of stack is NOT a Variable
+        }
     }
 
     /// Apply the rules for precedence and associativity to reduce the operator_stack
@@ -243,7 +278,10 @@ impl<'a> Expression<'a> {
         for token in self.postfix_order.iter().cloned() {
             match token {
                 ShyToken::Value(value) => output_stack.push(value),
-                ShyToken::Operator(op) => Self::operate(&mut output_stack, op, context),
+                ShyToken::Operator(op) => { 
+                    Self::operate(&mut output_stack, op, context);
+                    ()
+                },
                 _ => output_stack.push(ShyValue::error("Invalid token in expression".to_string()))
             }
         }
@@ -267,89 +305,94 @@ impl<'a> Expression<'a> {
     }
 
     /// Apply an operator, removing tokens from the stack, computing a result, and pushing the result back on the stack.
-    fn operate(output_stack: &mut Vec<ShyValue>, op: ShyOperator, context: &mut ExecutionContext<'a>) {
-        if Self::does_stack_have_error(output_stack) { return; }
+    fn operate(output_stack: &mut Vec<ShyValue>, op: ShyOperator, context: &mut ExecutionContext<'a>) -> ShyValue {
+        if Self::does_stack_have_error(output_stack) { return output_stack.last().unwrap().clone(); }
         if Self::is_stack_size_sufficient(output_stack, op)   {
             output_stack.clear();
-            output_stack.push(ShyValue::error(format!("Too few values on stack for operation {:?}", op)));
-            return;
+            let stack_empty = ShyValue::error(format!("Too few values on stack for operation {:?}", op));
+            output_stack.push(stack_empty.clone());
+            return stack_empty;
         }
         // If a unary operator, arg1 is the sole argument. 
         // If a binary operator, arg1 is the left operand.
-        let mut arg1: Option<ShyValue> = None;
+        let mut arg1: ShyValue = 0.into();
 
-        // If a unary operator, arg2 is None.
+        // If a unary operator, arg2 is unused.
         // If a binary operator, arg2 is the right operand.
-        let mut arg2: Option<ShyValue> = None;
-        let mut arg3: Option<ShyValue> = None;
+        let mut arg2: ShyValue = 0.into();
+        let mut arg3: ShyValue = 0.into();
+
+        let arguments = op.arguments();
         match op.arguments() {
             1 => {
-                arg1 = output_stack.pop();
+                arg1 = output_stack.pop().unwrap();
             },
             2 => {
-                arg2 = output_stack.pop();
-                arg1 = output_stack.pop();
+                arg2 = output_stack.pop().unwrap();
+                arg1 = output_stack.pop().unwrap();
             },
             3 => {
-                arg3 = output_stack.pop();
-                arg2 = output_stack.pop();
-                arg1 = output_stack.pop();
+                arg3 = output_stack.pop().unwrap();
+                arg2 = output_stack.pop().unwrap();
+                arg1 = output_stack.pop().unwrap();
             },
             _ => ()
         }
-        match op {
-            ShyOperator::Load => (),
-            ShyOperator::Store => (),
-            ShyOperator::Semicolon => (),
-            ShyOperator::FunctionCall => (),
-            ShyOperator::OpenParenthesis => (),
-            ShyOperator::CloseParenthesis => (),
-            ShyOperator::Comma => (),
-            ShyOperator::OpenBracket => (),
-            ShyOperator::CloseBracket => (),
-            ShyOperator::Member => (),
-            ShyOperator::Power => (),
-            ShyOperator::Exponentiation => (),
-            ShyOperator::PrefixPlusSign => (),
-            ShyOperator::PrefixMinusSign => (),
-            ShyOperator::PostIncrement => (),
-            ShyOperator::PostDecrement => (),
-            ShyOperator::SquareRoot => (),
-            ShyOperator::LogicalNot => (),
-            ShyOperator::Factorial => (),
-            ShyOperator::Match => (),
-            ShyOperator::NotMatch => (),
-            ShyOperator::Multiply => (),
-            ShyOperator::Divide => (),
-            ShyOperator::Mod => (),
-            ShyOperator::Add => (),
-            ShyOperator::Subtract => (),
-            ShyOperator::LessThan => (),
-            ShyOperator::LessThanOrEqualTo => (),
-            ShyOperator::GreaterThan => (),
-            ShyOperator::GreaterThanOrEqualTo => (),
-            ShyOperator::Equals => (),
-            ShyOperator::NotEquals => (),
-            ShyOperator::And => (), 
-            ShyOperator::Or => (), 
-            ShyOperator::Ternary => (),
-            ShyOperator::Assign => (),
-            ShyOperator::PlusAssign => (),
-            ShyOperator::MinusAssign => (),
-            ShyOperator::MultiplyAssign => (),
-            ShyOperator::DivideAssign => (),
-            ShyOperator::ModAssign => (),
-            ShyOperator::AndAssign => (),
-            ShyOperator::OrAssign => (),
+        let unimplemented = ShyValue::error(format!("Operation {} unimplemented", op.to_string()));
+        let result = match op {
+            ShyOperator::Load => unimplemented,
+            ShyOperator::Store => unimplemented,
+            ShyOperator::Semicolon => unimplemented,
+            ShyOperator::FunctionCall => ShyValue::call(&arg1, &arg2, context),
+            ShyOperator::OpenParenthesis => unimplemented,
+            ShyOperator::CloseParenthesis => unimplemented,
+            ShyOperator::Comma => ShyValue::comma(&arg1, &arg2),
+            ShyOperator::OpenBracket => unimplemented,
+            ShyOperator::CloseBracket => unimplemented,
+            ShyOperator::Member => unimplemented,
+            ShyOperator::Power => ShyValue::power(&arg1, &arg2),
+            ShyOperator::Exponentiation => context.call("exp".to_string(), arg1),
+            ShyOperator::PrefixPlusSign => ShyValue::prefix_plus(&arg1),
+            ShyOperator::PrefixMinusSign => ShyValue::prefix_minus(&arg1),
+            ShyOperator::PostIncrement => ShyValue::post_increment(&arg1, context),
+            ShyOperator::PostDecrement => ShyValue::post_decrement(&arg1, context),
+            ShyOperator::SquareRoot => ShyValue::sqrt(&arg1),
+            ShyOperator::LogicalNot => ShyValue::not(&arg1),
+            ShyOperator::Factorial => ShyValue::factorial(&arg1),
+            ShyOperator::Match => ShyValue::matches(&arg1, &arg2),
+            ShyOperator::NotMatch => ShyValue::not_matches(&arg1, &arg2),
+            ShyOperator::Multiply => ShyValue::multiply(&arg1, &arg2),
+            ShyOperator::Divide => ShyValue::divide(&arg1, &arg2),
+            ShyOperator::Mod => ShyValue::modulo(&arg1, &arg2),
+            ShyOperator::Add => ShyValue::add(&arg1, &arg2),
+            ShyOperator::Subtract => ShyValue::subtract(&arg1, &arg2),
+            ShyOperator::LessThan => ShyValue::less_than(&arg1, &arg2),
+            ShyOperator::LessThanOrEqualTo => ShyValue::less_than_or_equal_to(&arg1, &arg2),
+            ShyOperator::GreaterThan => ShyValue::greater_than(&arg1, &arg2),
+            ShyOperator::GreaterThanOrEqualTo => ShyValue::greater_than_or_equal_to(&arg1, &arg2),
+            ShyOperator::Equals => ShyValue::equals(&arg1, &arg2),
+            ShyOperator::NotEquals => ShyValue::not_equals(&arg1, &arg2),
+            ShyOperator::And => ShyValue::and(&arg1, &arg2), 
+            ShyOperator::Or => ShyValue::or(&arg1, &arg2), 
+            ShyOperator::Ternary => unimplemented,
+            ShyOperator::Assign => ShyValue::assign(&arg1, &arg2, context),
+            ShyOperator::PlusAssign => ShyValue::plus_assign(&arg1, &arg2, context),
+            ShyOperator::MinusAssign => ShyValue::minus_assign(&arg1, &arg2, context),
+            ShyOperator::MultiplyAssign => ShyValue::multiply_assign(&arg1, &arg2, context),
+            ShyOperator::DivideAssign => ShyValue::divide_assign(&arg1, &arg2, context),
+            ShyOperator::ModAssign => ShyValue::modulo_assign(&arg1, &arg2, context),
+            ShyOperator::AndAssign => ShyValue::and_assign(&arg1, &arg2, context),
+            ShyOperator::OrAssign => ShyValue::or_assign(&arg1, &arg2, context),
             _ => {
                 output_stack.clear();
-                output_stack.push(ShyValue::error(format!("Invalid operator {:?}", op)));
-                ()
+                let unsupported = ShyValue::error(format!("Invalid operator {:?}", op));
+                output_stack.push(unsupported.clone());
+                unsupported
             }
-        }
+        };
+        output_stack.push(result.clone());
+        result
     }
-
-
     
 }
 
@@ -439,6 +482,7 @@ mod tests {
             ShyToken::Operator(ShyOperator::Factorial),
             ShyToken::Operator(ShyOperator::Add),
             ShyToken::Value(ShyValue::Variable("n".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             ShyToken::Operator(ShyOperator::Factorial),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(2))),
             ShyToken::Operator(ShyOperator::Divide),
@@ -455,7 +499,9 @@ mod tests {
             "!(a || b)", 
             vec![
             ShyToken::Value(ShyValue::Variable("a".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             ShyToken::Value(ShyValue::Variable("b".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             ShyToken::Operator(ShyOperator::Or),
             ShyToken::Operator(ShyOperator::LogicalNot),
         ]);
@@ -467,10 +513,12 @@ mod tests {
             r#"name ~ /^Paul/ && color == "blue""#, 
             vec![
             ShyToken::Value(ShyValue::Variable("name".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             // TODO: Implement ShyScalar::Regex
             ShyToken::Value(ShyValue::Scalar(ShyScalar::String("^Paul".to_string()))),
             ShyToken::Operator(ShyOperator::Match),
             ShyToken::Value(ShyValue::Variable("color".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::String("blue".to_string()))),
             ShyToken::Operator(ShyOperator::Equals),
             ShyToken::Operator(ShyOperator::And),
@@ -486,6 +534,7 @@ mod tests {
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Rational(0.5))),
             ShyToken::Value(ShyValue::FunctionName("sin".to_string())),
             ShyToken::Value(ShyValue::Variable("π".to_string())),
+            ShyToken::Operator(ShyOperator::Load),
             ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(6))),
             ShyToken::Operator(ShyOperator::Divide),
             ShyToken::Operator(ShyOperator::FunctionCall),

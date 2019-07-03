@@ -245,7 +245,7 @@ impl ShyValue {
 
     //..................................................................
 
-    // Arithmetic Operators
+    // Arithmetic Operators (add, subtract, multiply, divide, modulo, power, sqrt, factorial)
 
     // Methods to perform operations
     // Note: They will not load a Variable value from the context. Caller must take care of that first.
@@ -337,7 +337,7 @@ impl ShyValue {
         }
     }
 
-    /// Exponentiation operator. 
+    /// Exponentiation operator (any base). 
     pub fn power(left_operand: &Self, right_operand: &Self) -> Self {
         match (left_operand, right_operand) {
             // Floating point exponentiation (with cast of integer to float)
@@ -691,12 +691,22 @@ impl ShyValue {
 
     //..................................................................
 
-    // Miscellaneous Operators: comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
+    // Miscellaneous Operators: call, comma, member, prefix_plus, prefix_minus, matches, not_matches, ternary
 
     /*
         OpenBracket,
         CloseBracket,
     */
+
+    /// call operator - performs a function call.
+    pub fn call(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext) -> Self {
+        match left_operand {
+            ShyValue::FunctionName(name) => ctx.call(name.clone(), right_operand.clone()),
+            _ => ShyValue::error(format!("Cannot call a function because the name is type {}", left_operand.type_name()))
+        }
+        
+        
+    }
 
     /// Comma operator for ShyValues (combines arguments into a list).
     /// The right_operand must be a ShyValue::Scalar.

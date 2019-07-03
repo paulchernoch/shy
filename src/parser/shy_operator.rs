@@ -136,8 +136,25 @@ impl ShyOperator {
         }
     }
 
+    /// Determines if the given operator stores a result in its first argument.
+    pub fn is_assignment(&self) -> bool  {
+        match self {
+            ShyOperator::Assign => true,
+            ShyOperator::PlusAssign => true,
+            ShyOperator::MinusAssign => true,
+            ShyOperator::MultiplyAssign => true,
+            ShyOperator::DivideAssign => true,
+            ShyOperator::ModAssign => true,
+            ShyOperator::AndAssign => true,
+            ShyOperator::OrAssign => true,
+            ShyOperator::PostIncrement => true,
+            ShyOperator::PostDecrement => true,
+            _ => false
+        }
+    }
+
     /// Number of arguments that each operator takes.
-    pub fn arguments(self) -> usize {
+    pub fn arguments(&self) -> usize {
         match self {
             ShyOperator::Load => 1,
             ShyOperator::Store => 1,
