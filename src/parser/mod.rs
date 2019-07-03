@@ -603,12 +603,43 @@ mod tests {
         ]);
     }
 
+    /// Compile formula testing associativity: "a = b + c * d"
+    #[test]
+    fn compile_associativity() {
+        compile_test_case(
+            "a = b + c * d", 
+            vec![
+            ShyToken::Value(ShyValue::Variable("a".into())),
+            ShyToken::Value(ShyValue::Variable("b".into())),
+            ShyOperator::Load.into(),
+            ShyToken::Value(ShyValue::Variable("c".into())),
+            ShyOperator::Load.into(),
+            ShyToken::Value(ShyValue::Variable("d".into())),
+            ShyOperator::Load.into(),
+            ShyOperator::Multiply.into(),
+            ShyOperator::Add.into(),
+            ShyOperator::Assign.into(),  
+        ]);
+    }    
+
     /// Execute a simple formula: "x = 1"
     #[test]
     fn exec_simple_assignment() {
         let mut ctx = ExecutionContext::default();
         execute_test_case("x = 1", &mut ctx, &1.into()); 
         asserting("result written to context").that(&ctx.load(&"x".to_string()).unwrap()).is_equal_to(&1.into());
+    }
+
+    /// Execute formula testing associativity: "a = b + c * d"
+    #[test]
+    fn exec_associativity() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 2.into());
+        ctx.store(&"c".into(), 3.into());
+        ctx.store(&"d".into(), 4.into());
+        let expected: ShyValue = 14.into();
+        execute_test_case("a = b + c * d", &mut ctx, &expected); 
+        asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
     }
 
 //..................................................................
