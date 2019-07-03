@@ -608,6 +608,7 @@ mod tests {
     fn exec_simple_assignment() {
         let mut ctx = ExecutionContext::default();
         execute_test_case("x = 1", &mut ctx, &1.into()); 
+        asserting("result written to context").that(&ctx.load(&"x".to_string()).unwrap()).is_equal_to(&1.into());
     }
 
 //..................................................................
