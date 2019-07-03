@@ -568,7 +568,7 @@ impl<'e> Lexer<'e> {
                 |s| match s.as_str() {
                     "*" | "/" | "%" => Some(ParserToken::MultiplicativeOp(s)),
                     "+" | "-" => Some(ParserToken::AdditiveOp(s)),
-                    "=" => Some(ParserToken::EqualityOp(s)),
+                    "=" => Some(ParserToken::AssignmentOp(s)),
                     "<" | ">" => Some(ParserToken::RelationalOp(s)),
                     _ => None // Impossible case, because of transitions that could lead here
                 }, 

@@ -24,6 +24,9 @@ use shy_operator::ShyOperator;
 
 //..................................................................
 
+/// Implements the Shunting Yard algorithm for converting a series of tokens in infix order 
+/// into a stack of values and operators in postfix order.
+/// Once reordered, the result of the expression may be efficiently computed from the postfix stack of tokens.
 #[derive(Debug)]
 pub struct ShuntingYard<'a> {
     marker: PhantomData<&'a i64>,
@@ -113,6 +116,8 @@ impl<'a> ShuntingYard<'a> {
             }
             match stoken {
                 // Value Rule: Values are immediately copied to the postfix-ordered output stack.
+                //             This includes ShyValue::Variable, which may need to be followed by 
+                //             a Load token at the top of the next loop.
                 ShyToken::Value(_) => self.postfix_order.push(stoken.clone()),
 
                 // Left Parenthesis Rule: Push all Left Parentheses onto the Operator Stack
@@ -136,17 +141,6 @@ impl<'a> ShuntingYard<'a> {
                 },
 
                 // TODO: Handle Unary operators.
-
-                // Variable Rule: First, push the Variable token onto the postfix-ordered output stack.
-                //                Second, if the next token in infix order is NOT an assignment operator,
-                //                push a Load operator onto the postfix-ordered output stack.
-                //                Of course, we can't look ahead, so we need to add that check above
-                //                to run in the next iteration of the loop
-                //                and look backwards. Thus if the current token is NOT an assignment operator,
-                //                and the top of the postfix_order stack is a Variable, then add a Load operator.
-                ShyToken::Value(ShyValue::Variable(var_name)) => {
-                    self.postfix_order.push(stoken.clone())
-                },
 
                 // Precedence & Associativity Rules:
                 ShyToken::Operator(op) => {
@@ -243,7 +237,7 @@ impl<'a> ShuntingYard<'a> {
         }
     }
 
-    /// Compile the expression into a postfix ordered series of tokens.
+    /// Compile the expression into a postfix ordered series of tokens and return the Expression.
     pub fn compile(mut self) -> std::result::Result<Expression<'a>,String> {
         match self.parse() {
             Ok(_) => {
@@ -258,7 +252,6 @@ impl<'a> ShuntingYard<'a> {
         }
     }
 
-
 }
 
 //..................................................................
@@ -267,12 +260,16 @@ impl<'a> ShuntingYard<'a> {
 #[derive(Debug)]
 pub struct Expression<'a> {
     marker: PhantomData<&'a i64>,
+
+    /// Infix Expression as a string before it was compiled
     pub expression_source: String,
 
+    /// The constants, variable references and operators parsed from the expression_source and rearranged into postfix order.
     pub postfix_order: Vec<ShyToken>
 }
 
 impl<'a> Expression<'a> {
+    /// Execute an already compiled expression against the given ExecutionContext.  
     pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
         let mut output_stack : Vec<ShyValue> = vec![];
         for token in self.postfix_order.iter().cloned() {
@@ -285,6 +282,7 @@ impl<'a> Expression<'a> {
                 _ => output_stack.push(ShyValue::error("Invalid token in expression".to_string()))
             }
         }
+        // The final result of the expression is on top of the stack; pop it off and return it. 
         match output_stack.pop() {
             Some(value) => Ok(value),
             None => Err("Expression stack is empty".to_string())
@@ -307,7 +305,7 @@ impl<'a> Expression<'a> {
     /// Apply an operator, removing tokens from the stack, computing a result, and pushing the result back on the stack.
     fn operate(output_stack: &mut Vec<ShyValue>, op: ShyOperator, context: &mut ExecutionContext<'a>) -> ShyValue {
         if Self::does_stack_have_error(output_stack) { return output_stack.last().unwrap().clone(); }
-        if Self::is_stack_size_sufficient(output_stack, op)   {
+        if !Self::is_stack_size_sufficient(output_stack, op)   {
             output_stack.clear();
             let stack_empty = ShyValue::error(format!("Too few values on stack for operation {:?}", op));
             output_stack.push(stack_empty.clone());
@@ -322,7 +320,6 @@ impl<'a> Expression<'a> {
         let mut arg2: ShyValue = 0.into();
         let mut arg3: ShyValue = 0.into();
 
-        let arguments = op.arguments();
         match op.arguments() {
             1 => {
                 arg1 = output_stack.pop().unwrap();
@@ -342,7 +339,18 @@ impl<'a> Expression<'a> {
         let result = match op {
             ShyOperator::Load => ShyValue::load(&arg1, context),
             ShyOperator::Store => unimplemented,
-            ShyOperator::Semicolon => unimplemented,
+            ShyOperator::Semicolon => {
+                // Semicolons separate individual statements.
+                // When we encounter one, wipe the stack clear to prepare for the next statement. 
+                // Return the result of the previous statement. 
+                // If the previous statement left the stack empty, return a NAN wrapped as a ShyValue. 
+                if output_stack.len() == 0 {
+                    return std::f64::NAN.into();
+                }
+                let intermediate_result = output_stack.pop().unwrap();
+                output_stack.clear();
+                return intermediate_result;
+            },
             ShyOperator::FunctionCall => ShyValue::call(&arg1, &arg2, context),
             ShyOperator::OpenParenthesis => unimplemented,
             ShyOperator::CloseParenthesis => unimplemented,
@@ -407,8 +415,8 @@ mod tests {
     #[allow(unused_imports)]
     use spectral::prelude::*;
 
-    #[test]
     /// Verify that the tokens for "2 + 2" are correctly rearranged into infix order.
+    #[test]
     fn compile_2_plus_2() {
         compile_test_case(
             "2 + 2", 
@@ -419,8 +427,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that operator precedence rules are followed.
+    #[test]
     fn operator_precedence() {
         compile_test_case(
             "2 + 3 * 4 - 5", 
@@ -435,8 +443,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that parentheses rules are followed.
+    #[test]
     fn parentheses() {
         compile_test_case(
             "(2 + 3) * (4 - 5)", 
@@ -451,8 +459,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that an error with too many closing parentheses is generated.
+    #[test]
     fn unbalanced_closing_parentheses() {
         let shy: ShuntingYard = "(2 + 3) * (4 - 5))".into();
         match shy.compile() {
@@ -461,8 +469,8 @@ mod tests {
         }
     }
 
-    #[test]
     /// Verify that an error with too many opening parentheses is generated.
+    #[test]
     fn unbalanced_opening_parentheses() {
         let shy: ShuntingYard = "((2 + 3) * (4 - 5)".into();
         match shy.compile() {
@@ -471,8 +479,8 @@ mod tests {
         }
     }
 
-    #[test]
     /// Verify that a factorial function is properly handled, both for literal integers and for a variable.
+    #[test]
     fn factorial() {
         compile_test_case(
             "(10 + 3! - n! /2) != 7", 
@@ -492,8 +500,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that logical not (a prefix operator) is handled properly when parenthesized.
+    #[test]
     fn logical_not_parenthesized() {
         compile_test_case(
             "!(a || b)", 
@@ -525,8 +533,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that logical not (a prefix operator) is handled properly when parenthesized.
+    #[test]
     fn function_call() {
         compile_test_case(
             "0.5 + sin(π/6)", 
@@ -542,8 +550,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that raising a value to a power has the correct precedence and associativity.
+    #[test]
     fn power() {
         compile_test_case(
             "3*2¹⁰/5", 
@@ -558,8 +566,8 @@ mod tests {
         ]);
     }
 
-    #[test]
     /// Verify that raising a value to a power has the correct precedence and associativity.
+    #[test]
     fn square_root() {
         compile_test_case(
             "3*√2/5", 
@@ -583,6 +591,30 @@ mod tests {
         }
     }
 
+    /// Compile a simple formula: "x = 1".
+    #[test]
+    fn compile_simple_assignment() {
+        compile_test_case(
+            "x = 1", 
+            vec![
+            ShyToken::Value(ShyValue::Variable("x".to_string())),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(1))),
+            ShyOperator::Assign.into(),
+        ]);
+    }
+
+    /// Execute a simple formula: "x = 1"
+    #[test]
+    fn exec_simple_assignment() {
+        let mut ctx = ExecutionContext::default();
+        execute_test_case("x = 1", &mut ctx, &1.into()); 
+    }
+
+//..................................................................
+
+// Test helper methods
+
+    /// Compile an expression but do not execute it; compare the tokens generated to the expected sequence.
     fn compile_test_case(expression: &str, expected_tokens: Vec<ShyToken>) {
         let shy: ShuntingYard = expression.into();
         match shy.compile() {
@@ -597,6 +629,20 @@ mod tests {
                 assert!(false, format!("Error compiling: {}", msg))
             }
         }
+    }
+
+    fn execute_test_case(expression: &str, ctx: &mut ExecutionContext, expected: &ShyValue) {
+        let shy: ShuntingYard = expression.into();
+        match shy.compile() {
+            Ok(expr) => {
+                match expr.exec(ctx) {
+                    Ok(actual) => asserting(&format!("exec of {}", expression.to_string())).that(&actual).is_equal_to(expected),
+                    Err(msg) => assert!(false, format!("Error executing {}: {}", expression, msg))
+                }
+            },
+            Err(msg) => { assert!(false, format!("Error compiling {}: {}", expression, msg)) }
+        }
+
     }
 
 
