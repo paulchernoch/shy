@@ -105,20 +105,25 @@ impl<'a> ShuntingYard<'a> {
     fn shunt(&mut self) -> std::result::Result<usize,String> {
         // Need to clone infix_order to placate the borrow-checker, otherwise I cannot call the reduce method.
         let infix_order_copy = self.infix_order.clone();
+        let mut op_count_since_value = 0;
         for stoken in infix_order_copy.iter() {
             // Variable Rule: Check for rvalues on postfix-ordered output stack.
             //                If we find an rvalue, push a Load operator onto the postfix-ordered output stack.
             //                Variable values must be loaded from context before the other operators can act upon them. 
             //                Only the assignment, post-increment and post-decrement operators perform their own 
             //                loading from and saving to the context.
-            if self.is_rvalue_on_stack(&stoken) {
+            if self.is_rvalue_on_stack(&stoken) && op_count_since_value == 0 {
                 self.postfix_order.push(ShyToken::Operator(ShyOperator::Load));
             }
+            op_count_since_value += 1;
             match stoken {
-                // Value Rule: Values are immediately copied to the postfix-ordered output stack.
-                //             This includes ShyValue::Variable, which may need to be followed by 
-                //             a Load token at the top of the next loop.
-                ShyToken::Value(_) => self.postfix_order.push(stoken.clone()),
+                // Value Rule, Part 1: Values are immediately copied to the postfix-ordered output stack.
+                //                     This includes ShyValue::Variable, which may need to be followed by 
+                //                     a Load token at the top of the next loop.
+                ShyToken::Value(_) => { 
+                    op_count_since_value = 0;
+                    self.postfix_order.push(stoken.clone())
+                },
 
                 // Left Parenthesis Rule: Push all Left Parentheses onto the Operator Stack
                 ShyToken::Operator(ShyOperator::OpenParenthesis) =>
@@ -171,6 +176,14 @@ impl<'a> ShuntingYard<'a> {
                 _ => self.postfix_order.push(stoken.clone())
             }
         }
+        // Variable Rule, Part 2: If the last token of the expression is a variable, 
+        //                        we cannot look ahead to see what the next operator is.
+        //                        Automatically add a Load operator. 
+        //                        This must be done before copying the remaining operators from the operator stack!
+        if self.is_last_token_variable() {
+            self.postfix_order.push(ShyToken::Operator(ShyOperator::Load));
+        }
+
         // End of Input Rule: Once there are no more operators expected, transfer all remaining operators 
         //                    from the operator stack to the postfix-ordered output stack.
         //                    This reverses the token's original order, by popping from one stack and pushing onto the other.
@@ -198,6 +211,13 @@ impl<'a> ShuntingYard<'a> {
                     _ => false // Token is not an operator (unlikely) or is an assignment operator (making the variable an lvalue) 
                 }
             },
+            _ => false // Top of stack is NOT a Variable
+        }
+    }
+
+    fn is_last_token_variable(&self) -> bool {
+        match &self.postfix_order.last() {
+            Some(ShyToken::Value(ShyValue::Variable(_))) => { true },
             _ => false // Top of stack is NOT a Variable
         }
     }
@@ -245,7 +265,8 @@ impl<'a> ShuntingYard<'a> {
                 Ok(Expression { 
                     marker: PhantomData,
                     expression_source: self.expression_source.clone(),
-                    postfix_order: self.postfix_order.clone()
+                    postfix_order: self.postfix_order.clone(),
+                    trace_on: false
                 })
             },
             Err(s) => Err(format!("{}\n{:?}", s, self))
@@ -265,7 +286,9 @@ pub struct Expression<'a> {
     pub expression_source: String,
 
     /// The constants, variable references and operators parsed from the expression_source and rearranged into postfix order.
-    pub postfix_order: Vec<ShyToken>
+    pub postfix_order: Vec<ShyToken>,
+
+    trace_on: bool
 }
 
 impl<'a> Expression<'a> {
@@ -273,6 +296,10 @@ impl<'a> Expression<'a> {
     pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
         let mut output_stack : Vec<ShyValue> = vec![];
         for token in self.postfix_order.iter().cloned() {
+            if self.trace_on {
+                Self::dump_stack(&output_stack);
+                println!("Process Token: {:?}", token);
+            }
             match token {
                 ShyToken::Value(value) => output_stack.push(value),
                 ShyToken::Operator(op) => { 
@@ -282,6 +309,9 @@ impl<'a> Expression<'a> {
                 _ => output_stack.push(ShyValue::error("Invalid token in expression".to_string()))
             }
         }
+        if self.trace_on {
+            Self::dump_stack(&output_stack);
+        }
         // The final result of the expression is on top of the stack; pop it off and return it. 
         match output_stack.pop() {
             Some(value) => Ok(value),
@@ -289,9 +319,27 @@ impl<'a> Expression<'a> {
         }
     }
 
+    fn dump_stack(output_stack: &Vec<ShyValue>) {
+        println!("Output Stack:");
+        let mut i = 0;
+        for token in output_stack.iter().cloned() {
+            i = i + 1;
+            println!("  {}. Token: {:?}", i, token);
+        }
+    }
+
+    pub fn trace(&mut self, context: &mut ExecutionContext<'a>) {
+        self.trace_on = true;
+        match self.exec(context) {
+            Ok(_) => { println!("Success"); },
+            Err(msg) => { println!("Failure: {}", msg); }
+        }
+        self.trace_on = false;
+    }
+
     /// Check if the stack has enough items to satisfy the needs of the operator
     fn is_stack_size_sufficient(output_stack: &mut Vec<ShyValue>, op: ShyOperator) -> bool {
-        op.arguments() >= output_stack.len() 
+        op.arguments() <= output_stack.len() 
     }
 
     /// Check if the stack is topped by an error value
@@ -307,7 +355,7 @@ impl<'a> Expression<'a> {
         if Self::does_stack_have_error(output_stack) { return output_stack.last().unwrap().clone(); }
         if !Self::is_stack_size_sufficient(output_stack, op)   {
             output_stack.clear();
-            let stack_empty = ShyValue::error(format!("Too few values on stack for operation {:?}", op));
+            let stack_empty = ShyValue::error(format!("Too few values on stack for operation {:?}. Size = {}", op, output_stack.len()));
             output_stack.push(stack_empty.clone());
             return stack_empty;
         }
@@ -359,7 +407,7 @@ impl<'a> Expression<'a> {
             ShyOperator::CloseBracket => unimplemented,
             ShyOperator::Member => unimplemented,
             ShyOperator::Power => ShyValue::power(&arg1, &arg2),
-            ShyOperator::Exponentiation => context.call("exp".to_string(), arg1),
+            ShyOperator::Exponentiation => ShyValue::power(&arg1, &arg2),
             ShyOperator::PrefixPlusSign => ShyValue::prefix_plus(&arg1),
             ShyOperator::PrefixMinusSign => ShyValue::prefix_minus(&arg1),
             ShyOperator::PostIncrement => ShyValue::post_increment(&arg1, context),
@@ -626,7 +674,7 @@ mod tests {
     #[test]
     fn exec_simple_assignment() {
         let mut ctx = ExecutionContext::default();
-        execute_test_case("x = 1", &mut ctx, &1.into()); 
+        execute_test_case("x = 1", &mut ctx, &1.into(), false); 
         asserting("result written to context").that(&ctx.load(&"x".to_string()).unwrap()).is_equal_to(&1.into());
     }
 
@@ -638,7 +686,18 @@ mod tests {
         ctx.store(&"c".into(), 3.into());
         ctx.store(&"d".into(), 4.into());
         let expected: ShyValue = 14.into();
-        execute_test_case("a = b + c * d", &mut ctx, &expected); 
+        execute_test_case("a = b + c * d", &mut ctx, &expected, false); 
+        asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
+    }
+
+    #[test]
+    fn exec_fancy() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 2.into());
+        ctx.store(&"c".into(), 3.into());
+        ctx.store(&"d".into(), 25.into());
+        let expected: ShyValue = 5.0.into();
+        execute_test_case("a = ((b^3 + c) * √d - 10)/9", &mut ctx, &expected, true); 
         asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
     }
 
@@ -663,10 +722,11 @@ mod tests {
         }
     }
 
-    fn execute_test_case(expression: &str, ctx: &mut ExecutionContext, expected: &ShyValue) {
+    fn execute_test_case(expression: &str, ctx: &mut ExecutionContext, expected: &ShyValue, turn_on_trace: bool) {
         let shy: ShuntingYard = expression.into();
         match shy.compile() {
-            Ok(expr) => {
+            Ok(mut expr) => {
+                if turn_on_trace { expr.trace(ctx); }
                 match expr.exec(ctx) {
                     Ok(actual) => asserting(&format!("exec of {}", expression.to_string())).that(&actual).is_equal_to(expected),
                     Err(msg) => assert!(false, format!("Error executing {}: {}", expression, msg))
