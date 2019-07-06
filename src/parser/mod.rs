@@ -701,6 +701,14 @@ mod tests {
         asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
     }
 
+    #[test]
+    fn exec_regex() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"a".into(), "A9123".into());
+        let expected: ShyValue = true.into();
+        execute_test_case("a ~ /9[0-9]+3/", &mut ctx, &expected, true); 
+    }
+
 //..................................................................
 
 // Test helper methods
