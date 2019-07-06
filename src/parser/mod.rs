@@ -794,7 +794,6 @@ mod tests {
             },
             Err(msg) => { assert!(false, format!("Error compiling {}: {}", expression, msg)) }
         }
-
     }
 
 
