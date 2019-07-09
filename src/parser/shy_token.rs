@@ -12,6 +12,7 @@ use regex::Regex;
 use super::factorial::factorial;
 use super::factorial::factorial_approx;
 use super::shy_operator::ShyOperator;
+use super::shy_scalar::ShyScalar;
 use super::execution_context::ExecutionContext;
 
 /*
@@ -58,20 +59,6 @@ pub fn is_falsey(s: &str) -> bool {
 
 pub fn is_truthy(s: &str) -> bool {
     !FALSEY.contains(s)
-}
-
-
-//..................................................................
-
-/// ShyScalars are the atomic values that can be used as operands to operators and arguments to functions,
-/// or returned as results.
-#[derive(Clone, PartialEq, Debug)]
-pub enum ShyScalar {
-    Boolean(bool),
-    Integer(i64),
-    Rational(f64),
-    String(String),
-    Error(String)
 }
 
 //..................................................................

@@ -38,7 +38,7 @@ fn repl() {
         if command == "trace off" {
             trace_on = false; 
             continue; 
-        }        
+        }
         let shy: ShuntingYard = command.into();
         match shy.compile() {
             Ok(mut expr) => {

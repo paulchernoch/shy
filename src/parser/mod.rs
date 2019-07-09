@@ -10,7 +10,6 @@ pub mod shy_token;
 #[allow(unused_imports)]
 use shy_token::ShyToken;
 use shy_token::ShyValue;
-use shy_token::ShyScalar;
 
 pub mod factorial;
 pub mod associativity;
@@ -18,6 +17,9 @@ use associativity::Associativity;
 
 pub mod execution_context;
 use execution_context::ExecutionContext;
+
+pub mod shy_scalar;
+use shy_scalar::ShyScalar;
 
 pub mod shy_operator;
 use shy_operator::ShyOperator;
@@ -319,6 +321,28 @@ pub struct Expression<'a> {
 }
 
 impl<'a> Expression<'a> {
+
+    /// Create and compile a new Expression from a String or &str slice.
+    /// If compilation fails, return an Expression with a single Error token 
+    /// for which had_compile_error() will return true.
+    pub fn new<S>(expr_source: S) -> Expression<'a> where S: Into<String> {
+        let expr_string: String = expr_source.into();
+        let shy : ShuntingYard = expr_string.clone().into(); 
+        match shy.compile() {
+            Ok(expr) => expr,
+            _ => Expression {
+                marker: PhantomData,
+                expression_source: expr_string.clone(),
+                postfix_order: vec![ShyToken::Error],
+                trace_on: false
+            }
+        }
+    }
+
+    pub fn had_compile_error(&self) -> bool {
+        self.postfix_order.len() == 0 || self.postfix_order.iter().any(|token| token.is_error() )
+    }
+
     /// Execute an already compiled expression against the given ExecutionContext.  
     pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
         let mut output_stack : Vec<ShyValue> = vec![];

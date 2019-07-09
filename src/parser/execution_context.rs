@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::f64;
 
-use super::shy_token::ShyScalar;
+use super::shy_scalar::ShyScalar;
 use super::shy_token::ShyValue;
 
 //..................................................................
