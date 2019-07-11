@@ -6,6 +6,8 @@ extern crate itertools;
 #[macro_use] extern crate enum_derive;
 extern crate regex;
 
+use std::convert::TryInto;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -16,6 +18,8 @@ extern crate spectral;
 mod parser;
 mod lexer;
 use parser::execution_context::ExecutionContext;
+use parser::shy_scalar::ShyScalar;
+use parser::shy_token::ShyValue;
 
 #[allow(unused_imports)]
 use parser::ShuntingYard;
@@ -44,7 +48,15 @@ fn repl() {
             Ok(mut expr) => {
                 if trace_on { expr.trace(&mut ctx); }
                 match expr.exec(&mut ctx) {
-                    Ok(actual) => println!("{:?}", actual),
+                     
+                    Ok(ShyValue::Scalar(actual)) => {
+                        let s_maybe : Result<String, &'static str> = actual.try_into();
+                        match s_maybe {
+                            Ok(s) => println!("{}", s),
+                            Err(msg) => println!("Error executing {}: {}", command, msg)
+                        }
+                    },
+                    Ok(actual_value) => println!("{:?}", actual_value),
                     Err(msg) => println!("Error executing {}: {}", command, msg)
                 }
             },

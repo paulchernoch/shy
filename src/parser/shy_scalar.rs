@@ -48,7 +48,7 @@ impl TryFrom<ShyScalar> for i64 {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
-            ShyScalar::Boolean(b) => Err("Value is a boolean, not an integer"),
+            ShyScalar::Boolean(_) => Err("Value is a boolean, not an integer"),
             ShyScalar::Integer(i) => Ok(i),
             ShyScalar::Rational(r) => {
                 let i = r as i64;
@@ -66,7 +66,7 @@ impl TryFrom<ShyScalar> for f64 {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
-            ShyScalar::Boolean(b) => Err("Value is a boolean, not a floating point number"),
+            ShyScalar::Boolean(_) => Err("Value is a boolean, not a floating point number"),
             ShyScalar::Integer(i) => Ok(i as f64),
             ShyScalar::Rational(r) => Ok(r),
             ShyScalar::String(_) => Err("Value is a string, not a floating point number"),
