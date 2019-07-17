@@ -24,6 +24,8 @@ use shy_scalar::ShyScalar;
 pub mod shy_operator;
 use shy_operator::ShyOperator;
 
+pub mod shy_association;
+
 //..................................................................
 
 /// Implements the Shunting Yard algorithm for converting a series of tokens in infix order 
