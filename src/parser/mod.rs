@@ -25,6 +25,7 @@ pub mod shy_operator;
 use shy_operator::ShyOperator;
 
 pub mod shy_association;
+pub mod shy_object;
 
 //..................................................................
 

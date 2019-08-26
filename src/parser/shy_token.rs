@@ -14,6 +14,8 @@ use super::factorial::factorial_approx;
 use super::shy_operator::ShyOperator;
 use super::shy_scalar::ShyScalar;
 use super::execution_context::ExecutionContext;
+use super::shy_association::ShyAssociation;
+
 
 /*
     Data used in the ShuntingYard parser:
@@ -80,6 +82,8 @@ pub enum ShyValue {
 
     /// Name of a function in the context to be called.
     FunctionName(String)
+
+  //  Object(Box<dyn ShyAssociation>),
 }
 const TRUE_STRING: &str = "True";
 const FALSE_STRING: &str = "False";
