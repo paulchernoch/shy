@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Keys;
+use core::iter::Cloned;
 use std::fmt::Debug;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -23,6 +25,8 @@ pub trait ShyAssociation {
 
     /// True if the property currently has a value that can be retrieved, false otherwise.
     fn can_get_property(&self, property_name: &'static str) -> bool;
+
+    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a>;
 
     /// An &Any can be cast to a reference to a concrete type.
     fn as_any(&self) -> &Any;
@@ -49,6 +53,10 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
 
     fn can_get_property(&self, property_name: &'static str) -> bool {
         self.contains_key(property_name)
+    }
+
+    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a> {
+        Box::new(self.keys().cloned())
     }
 
     fn as_any(&self) -> &Any {
