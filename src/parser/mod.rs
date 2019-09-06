@@ -7,7 +7,7 @@ use crate::lexer::ParserToken;
 use crate::lexer::Lexer;
 
 pub mod indent;
-use indent::*;
+// use indent::*;
 
 
 pub mod shy_token;
@@ -437,7 +437,7 @@ impl<'a> Expression<'a> {
         // If a unary operator, arg2 is unused.
         // If a binary operator, arg2 is the right operand.
         let mut arg2: ShyValue = 0.into();
-        let mut arg3: ShyValue = 0.into();
+        let mut _arg3: ShyValue = 0.into();
 
         match op.arguments() {
             1 => {
@@ -448,7 +448,7 @@ impl<'a> Expression<'a> {
                 arg1 = output_stack.pop().unwrap();
             },
             3 => {
-                arg3 = output_stack.pop().unwrap();
+                _arg3 = output_stack.pop().unwrap();
                 arg2 = output_stack.pop().unwrap();
                 arg1 = output_stack.pop().unwrap();
             },

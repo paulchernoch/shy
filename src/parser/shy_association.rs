@@ -1,10 +1,13 @@
 use std::collections::HashMap;
-use std::collections::hash_map::Keys;
 use core::iter::Cloned;
 use std::fmt::Debug;
 use std::cell::RefCell;
 use std::rc::Rc;
+use itertools::sorted;
 use super::shy_token::ShyValue;
+use super::indent::IndentDebug;
+use super::indent::IndentDisplay;
+use super::indent::write_debug;
 
 // `Any` allows us to do dynamic typecasting.
 use std::any::Any;
@@ -26,6 +29,7 @@ pub trait ShyAssociation {
     /// True if the property currently has a value that can be retrieved, false otherwise.
     fn can_get_property(&self, property_name: &'static str) -> bool;
 
+    /// Boxes up an iterator over all the property names for the association.
     fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a>;
 
     /// An &Any can be cast to a reference to a concrete type.
@@ -36,6 +40,12 @@ pub trait ShyAssociation {
 
     /// Create a deep copy of the ShyAssociation and box it up in an Rc and RefCell, to preserve interior mutability.
     fn clone_association(&self) -> Rc<RefCell<ShyAssociation>>;
+
+    fn to_indented_string<'a>(&self, indent_by: usize, tab_size: usize) -> String;
+}
+
+fn set_into<A : ShyAssociation, V: Into<ShyValue> + Sized>(association: &mut A, property_name: &'static str, property_value: V) -> Option<ShyValue> {
+    association.set(property_name, property_value.into())
 }
 
 impl ShyAssociation for HashMap<&'static str, ShyValue> {
@@ -74,6 +84,24 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
 
     fn clone_association(&self) -> Rc<RefCell<ShyAssociation>> {
         Rc::new(RefCell::new(self.clone()))
+    }
+
+    fn to_indented_string<'a>(&'a self, indent_by: usize, tab_size: usize) -> String {
+        let mut indented = String::new();
+        indented.push_str(&"{\n".indent_display(indent_by));
+        for key_ptr in sorted(self.keys()) {
+            let key: &'a str = *key_ptr;
+            match self.get(key) {
+                Some(value) => {
+                    let s = vec![key, ": ", &write_debug(value, "Error")].concat();
+                    indented.push_str(&s.indent_display(indent_by + tab_size))
+                },
+                None => indented.push_str(&"?".indent_display(indent_by + tab_size))
+            }
+            indented.push_str("\n");
+        }
+        indented.push_str(&"}\n".indent_display(indent_by));
+        indented
     }
 }
 
@@ -143,5 +171,24 @@ mod tests {
         // DISABLE UNTIL WE GET EQUALITY WORKING
         //        asserting("equality works for ShyAssociations").that(*association1 == *association2).is_equal_to(true);
         
+    }
+
+    #[test]
+    fn to_indented_string() {
+        let mut dictionary1 : HashMap<&str, ShyValue> = HashMap::new();
+        set_into(&mut dictionary1, "name", "The Doctor");
+        set_into(&mut dictionary1, "season", 12);
+        set_into(&mut dictionary1, "popular", true);
+        let actual = dictionary1.to_indented_string(0,2);
+        println!("actual:\n{}\n:actual\n", actual);
+        let expected = r#"{
+  name: Scalar(String("The Doctor"))
+  popular: Scalar(Boolean(true))
+  season: Scalar(Integer(12))
+}
+"#;
+        println!("expected:\n{}\n:expected\n", expected);
+
+        asserting("to_indented_string works for a dictionary").that(&(actual == *expected)).is_equal_to(true);
     }
 }
