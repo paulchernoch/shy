@@ -1,11 +1,8 @@
 use std::collections::HashMap;
-use core::iter::Cloned;
-use std::fmt::Debug;
 use std::cell::RefCell;
 use std::rc::Rc;
 use itertools::sorted;
 use super::shy_token::ShyValue;
-use super::indent::IndentDebug;
 use super::indent::IndentDisplay;
 use super::indent::write_debug;
 
@@ -41,10 +38,14 @@ pub trait ShyAssociation {
     /// Create a deep copy of the ShyAssociation and box it up in an Rc and RefCell, to preserve interior mutability.
     fn clone_association(&self) -> Rc<RefCell<ShyAssociation>>;
 
+    /// Supports the writing of a Debug formatter
     fn to_indented_string<'a>(&self, indent_by: usize, tab_size: usize) -> String;
 }
 
-fn set_into<A : ShyAssociation, V: Into<ShyValue> + Sized>(association: &mut A, property_name: &'static str, property_value: V) -> Option<ShyValue> {
+/// Permit setting the value for a key in a ShyAssociation using any value that can be converted into a ShyValue.
+/// Note: I would prefer that this be a method of the ShyAssociation trait, but doing so yields this error:
+///    method `set_into` has generic type parameters rustc(E0038).
+pub fn set_into<A : ShyAssociation, V: Into<ShyValue> + Sized>(association: &mut A, property_name: &'static str, property_value: V) -> Option<ShyValue> {
     association.set(property_name, property_value.into())
 }
 
@@ -86,6 +87,8 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
         Rc::new(RefCell::new(self.clone()))
     }
 
+    /// Format the key-value pairs as a string, indenting the given number of spaces
+    /// and incrementing the indentation for the values, should any of them also be associations.
     fn to_indented_string<'a>(&'a self, indent_by: usize, tab_size: usize) -> String {
         let mut indented = String::new();
         indented.push_str(&"{\n".indent_display(indent_by));
@@ -162,14 +165,14 @@ mod tests {
     fn equality() {
         let mut dictionary1 : HashMap<&str, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
-        let new_value: ShyValue = "Merriam".into();
         let age: ShyValue = 50.into();
         dictionary1.set("name", value.clone());
+        dictionary1.set("age", age);
         let mut dictionary2 = dictionary1.clone();
         let association1: &mut ShyAssociation = &mut dictionary1;
         let association2: &mut ShyAssociation = &mut dictionary2;
         // DISABLE UNTIL WE GET EQUALITY WORKING
-        //        asserting("equality works for ShyAssociations").that(*association1 == *association2).is_equal_to(true);
+        asserting("equality works for ShyAssociations").that(&association1.equals_association(association2)).is_equal_to(true);
         
     }
 

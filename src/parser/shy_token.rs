@@ -8,13 +8,16 @@ use std::f64;
 use std::convert::TryFrom;
 use std::collections::HashSet;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use regex::Regex;
+
 use super::factorial::factorial;
 use super::factorial::factorial_approx;
 use super::shy_operator::ShyOperator;
 use super::shy_scalar::ShyScalar;
 use super::execution_context::ExecutionContext;
-use super::shy_association::ShyAssociation;
+use super::shy_object::ShyObject;
+use super::shy_association::*;
 
 
 /*
@@ -81,9 +84,9 @@ pub enum ShyValue {
     Variable(String),
 
     /// Name of a function in the context to be called.
-    FunctionName(String)
+    FunctionName(String),
 
-  //  Object(Box<dyn ShyAssociation>),
+    Object(ShyObject)
 }
 const TRUE_STRING: &str = "True";
 const FALSE_STRING: &str = "False";
@@ -123,6 +126,9 @@ impl PartialOrd for ShyValue {
                 => Some(if *left { 1_i64.cmp(right) } else { 0_i64.cmp(right) } ),
             (ShyValue::Scalar(ShyScalar::Integer(left)), ShyValue::Scalar(ShyScalar::Boolean(right))) 
                 => Some(left.cmp( if *right { &1_i64 } else { &0_i64 } )),
+
+            (ShyValue::Object(obj1), ShyValue::Object(obj2)) 
+                => if obj1 == obj2 { Some(Ordering::Equal) } else { None }
 
             _ => None
         }
@@ -167,6 +173,7 @@ impl ShyValue {
             ShyValue::FunctionName(_) => "FunctionName",
             ShyValue::Variable(_) => "Variable",
             ShyValue::Vector(_) => "Vector",
+            ShyValue::Object(_) => "Object",
             ShyValue::Scalar(ShyScalar::Boolean(_)) => "Boolean",
             ShyValue::Scalar(ShyScalar::Integer(_)) => "Integer",
             ShyValue::Scalar(ShyScalar::Rational(_)) => "Rational",
@@ -1286,6 +1293,20 @@ mod tests {
         binary_operator_test(&"Hello World".into(), &"el+o".into(), &true.into(), &ShyValue::matches);
         binary_operator_test(&"Hello World".into(), &"^e".into(), &false.into(), &ShyValue::matches);
     }   
+
+    #[test]
+    /// Create a nested ShyValue(Object) and verify that we can navigate to the bottom object.
+    fn shyvalue_object() {
+        let mut top_map : HashMap<&'static str, ShyValue> = HashMap::new(); 
+        top_map.set("name", "Number 6".into());
+        let mut bottom_map : HashMap<&'static str, ShyValue> = HashMap::new(); 
+        bottom_map.set("favorite color", "teal".into());
+
+        let mut top_obj = ShyValue::Object(ShyObject::new(&top_map));
+        let mut bottom_obj = ShyValue::Object(ShyObject::new(&bottom_map));
+
+        
+    }
 
     // ...................................................................................
 

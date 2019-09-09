@@ -17,9 +17,8 @@ extern crate spectral;
 
 mod parser;
 mod lexer;
-use parser::indent::*;
 use parser::execution_context::ExecutionContext;
-use parser::shy_scalar::ShyScalar;
+// use parser::shy_scalar::ShyScalar;
 use parser::shy_token::ShyValue;
 
 #[allow(unused_imports)]
