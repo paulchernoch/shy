@@ -29,6 +29,12 @@ impl ShyObject {
         }
     }
 
+    pub fn empty() -> ShyObject {
+        ShyObject {
+            association: Rc::new(RefCell::new(HashMap::new()))
+        }
+    }
+
     /// Create a shallow clone of this ShyObject that has a new Rc that points to the same RefCell and hence the same ShyAssociation.
     pub fn shallow_clone(&self) -> ShyObject {
         ShyObject {
@@ -36,11 +42,44 @@ impl ShyObject {
         }
     }
 
-    fn as_deref(&self) -> impl Deref<Target = dyn ShyAssociation> {
+    pub fn as_deref(&self) -> impl Deref<Target = dyn ShyAssociation> {
         self.association.borrow()
-    }   
-    fn as_deref_mut(&self) -> impl DerefMut<Target = dyn ShyAssociation> {
+    }
+
+    pub fn as_deref_mut(&self) -> impl DerefMut<Target = dyn ShyAssociation> {
         self.association.borrow_mut()
+    }
+
+    /// Follow a path from the given ShyObject down to one of its descendants and retrieve that descendant as an Option.
+    /// If any levels of the hierarchy are missing and can be added, add them using the supplied generator.
+    /// If at any stage it is not permitted to add or follow a given property in tht path, return None.
+    /// If the path vector is empty, return a shallow clone of self.
+    pub fn vivify<'a>(&'a mut self, path: Vec<&'static str>, generator: impl Fn() -> ShyObject) -> Option<ShyObject> {
+        if path.len() == 0 {
+            return Some(self.shallow_clone())
+        }
+        let mut current_object = self.shallow_clone();
+        let mut next_object;
+        for key in path {
+            {
+                let mut deref = current_object.as_deref_mut();
+                if !deref.can_set_property(key) {
+                    return None
+                }
+                if !deref.can_get_property(key) {
+                    next_object = generator();
+                    deref.set(key, ShyValue::Object(next_object.shallow_clone()));
+                }
+                else { 
+                    match deref.get(key) {
+                        Some(ShyValue::Object(obj)) => next_object = obj.shallow_clone(),
+                        _ => return None
+                    }
+                }
+            }
+            current_object = next_object;
+        }
+        Some(current_object)
     }
 }
 
@@ -85,6 +124,30 @@ mod tests {
         let actual = deref.get("name");
         let expected = ShyValue::Scalar(ShyScalar::String("The Doctor".to_owned()));
         assert_eq!(Option::Some(&expected), actual);
+    }
+
+    #[test]
+    fn vivify() {
+        let mut shy_obj = ShyObject::share(Rc::new(RefCell::new(HashMap::new())));
+        let shy_value = ShyValue::Object(shy_obj.shallow_clone());
+        let expected_qty = 3;
+
+        match shy_obj.vivify(vec!["customers", "smith", "orders"], || ShyObject::empty()) {
+            Some(customers_smith_orders) => {
+                {
+                    let mut deref = customers_smith_orders.as_deref_mut();
+                    deref.set("quantity", expected_qty.into());
+                }
+                match shy_value.get("customers").get("smith").get("orders").get("quantity") {
+                    ShyValue::Scalar(ShyScalar::Integer(actual_qty)) => { 
+                        assert_eq!(expected_qty, actual_qty);
+                        ()
+                    },
+                    _ => assert!(false)
+                }
+            },
+            None => assert!(false)
+        }
     }
 
 }

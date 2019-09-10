@@ -787,6 +787,28 @@ impl ShyValue {
     pub fn not_matches(left_operand: &Self, right_operand: &Self) -> Self {
         ShyValue::not(&ShyValue::matches(left_operand, right_operand))
     }
+
+    /// Safe Object property navigation.
+    /// If an object does not have the given property, a ShyScalar::Error is returned.
+    /// If a ShyValue::Object is returned, a shallow_clone is created, so that the underlying ShyAssociation is shared.
+    pub fn get(&self, key: &'static str) -> ShyValue {
+        match self {
+            ShyValue::Object(obj) => { 
+                let deref = obj.as_deref();
+                if !deref.can_get_property(key) {
+                    ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
+                }
+                else {
+                    match deref.get(key) {
+                        Some(ShyValue::Object(child_obj)) => ShyValue::Object(child_obj.shallow_clone()),
+                        Some(value) => value.clone(),
+                        _ => ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
+                    }
+                }
+            }
+            _ => ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
+        }
+    }
 }
 
 // Conversions from basic types to ShyValue
