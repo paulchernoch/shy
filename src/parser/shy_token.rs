@@ -8,7 +8,6 @@ use std::f64;
 use std::convert::TryFrom;
 use std::collections::HashSet;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use regex::Regex;
 
 use super::factorial::factorial;
@@ -17,15 +16,14 @@ use super::shy_operator::ShyOperator;
 use super::shy_scalar::ShyScalar;
 use super::execution_context::ExecutionContext;
 use super::shy_object::ShyObject;
-use super::shy_association::*;
 
 
 /*
     Data used in the ShuntingYard parser:
 
-        - Associativity (used by ShyOperator)
-        - ShyOperator (used by ShyToken)
-        - ShyScalar (used by ShyValue)
+        - Associativity (used by ShyOperator, defined in associativity.rs)
+        - ShyOperator (used by ShyToken, defined in shy_operator.rs)
+        - ShyScalar (used by ShyValue, defined in shy_scalar.rs)
         - ShyValue (used by ShyToken)
         - ShyToken (parsed from ParserToken)
 
@@ -83,9 +81,13 @@ pub enum ShyValue {
     /// Name of a variable in the context to be read from or written to.
     Variable(String),
 
+    /// A variable name followed by a series of nested property references
+    PropertyChain(Vec<&'static str>),
+
     /// Name of a function in the context to be called.
     FunctionName(String),
 
+    /// An object which has properties that you can get and set. 
     Object(ShyObject)
 }
 const TRUE_STRING: &str = "True";
@@ -157,6 +159,39 @@ impl From<ParserToken> for ShyValue {
 }
 
 impl ShyValue {
+
+    /// Clone all parts of the ShyValue except any ShyValue::Object parts, which will be shallow cloned.
+    /// This permits multiple viewers of the data in the ShyObject, permitting it to be used a a context for expressions. 
+    pub fn shallow_clone(&self) -> Self {
+        match self {
+            ShyValue::Object(child_obj) => ShyValue::Object(child_obj.shallow_clone()),
+            _ => self.clone()
+        }        
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            ShyValue::FunctionName(_) => "FunctionName",
+            ShyValue::Variable(_) => "Variable",
+            ShyValue::PropertyChain(_) => "PropertyChain",
+            ShyValue::Vector(_) => "Vector",
+            ShyValue::Object(_) => "Object",
+            ShyValue::Scalar(ShyScalar::Boolean(_)) => "Boolean",
+            ShyValue::Scalar(ShyScalar::Integer(_)) => "Integer",
+            ShyValue::Scalar(ShyScalar::Rational(_)) => "Rational",
+            ShyValue::Scalar(ShyScalar::String(_)) => "String",
+            ShyValue::Scalar(ShyScalar::Error(_)) => "Error",
+        }
+    }
+
+    pub fn empty() -> Self {
+        ShyValue::Object(ShyObject::empty())
+    }
+
+    //..................................................................
+
+    // Related to error values
+
     pub fn error(message: String) -> Self {
         ShyValue::Scalar(ShyScalar::Error(message))
     }
@@ -168,20 +203,6 @@ impl ShyValue {
         }
     }
 
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            ShyValue::FunctionName(_) => "FunctionName",
-            ShyValue::Variable(_) => "Variable",
-            ShyValue::Vector(_) => "Vector",
-            ShyValue::Object(_) => "Object",
-            ShyValue::Scalar(ShyScalar::Boolean(_)) => "Boolean",
-            ShyValue::Scalar(ShyScalar::Integer(_)) => "Integer",
-            ShyValue::Scalar(ShyScalar::Rational(_)) => "Rational",
-            ShyValue::Scalar(ShyScalar::String(_)) => "String",
-            ShyValue::Scalar(ShyScalar::Error(_)) => "Error",
-        }
-    }
-
     /// Asserts that the two operands are incompatible when used with the given binary operator
     /// and formats an appropriate error message.
     fn incompatible(left: &Self, right: &Self, operator_name: &str) -> Self {
@@ -190,6 +211,90 @@ impl ShyValue {
 
     fn out_of_range(left: &Self, operator_name: &str) -> Self {
         ShyValue::error(format!("Operand for {} operator has {} value {:?} that is out of range", operator_name, left.type_name(), left))
+    }
+
+    fn not_an_object(&self) -> Self {
+        ShyValue::error(format!("Cannot get or set properties on a non-object of type {}", self.type_name()))
+    }
+
+    fn invalid_property(property_name: &'static str) -> Self {
+        ShyValue::error(format!("No such property '{}'", property_name))
+    }
+
+
+    //..................................................................
+
+    // Get and set properties (applies only to ShyValue::Object)
+
+    /// Get the value of a ShyValue::Object's property.
+    ///   On Success, return the value wrapped as Ok(value).
+    ///   On failure, return an error (a ShyValue::Scalar(ShyScalar::Error)) wrapped as Err(err).
+    pub fn get(&self, property_name: &'static str) -> Result<ShyValue,ShyValue> {
+        match self {
+            ShyValue::Object(obj) => match obj.as_deref().get(property_name) {
+                Some(value) => Result::Ok(value.shallow_clone()),
+                _ => Result::Err(ShyValue::invalid_property(property_name))
+            },
+            _ => Result::Err(self.not_an_object())
+        }
+    }
+
+    /// Set a property of the object to a new value.
+    ///   On success, null is returned wrapped as Ok.
+    ///   If the property may not be set or the ShyValue is not a ShyValue::Object, return an error (a ShyValue::Scalar(ShyScalar::Error)).
+    pub fn set(&self, property_name: &'static str, property_value: ShyValue) -> Result<(), Self> {
+        match self {
+            ShyValue::Object(obj) => {
+                let set_returned_a_value =
+                    match obj.as_deref_mut().set(property_name, property_value) {
+                        Some(_) => true,
+                        None => false
+                    };
+                if set_returned_a_value { Result::Ok(()) }
+                else {
+                    // No value returned can mean that set failed or that there was no previous value to return.
+                    // Check to see if there is now a value.
+                    match obj.as_deref().can_get_property(property_name) {
+                        true => Result::Ok(()),
+                        false => Result::Err(ShyValue::invalid_property(property_name))
+                    }
+                }
+            },
+            _ => Result::Err(self.not_an_object())
+        }
+    }
+
+    /// Safe Object property navigation.
+    /// Attempt to regard self as a ShyValue::Object and get the value of the property corresponding to the given key.
+    /// If an object does not have the given property, a ShyScalar::Error is returned.
+    /// If a ShyValue::Object is returned, a shallow_clone is created, so that the underlying ShyAssociation is shared.
+    pub fn get_safe(&self, key: &'static str) -> ShyValue {
+        match self {
+            ShyValue::Object(obj) => { 
+                let deref = obj.as_deref();
+                if !deref.can_get_property(key) {
+                    ShyValue::invalid_property(key)
+                }
+                else {
+                    match deref.get(key) {
+                        Some(value) => value.shallow_clone(),
+                        _ => ShyValue::invalid_property(key)
+                    }
+                }
+            }
+            _ => ShyValue::invalid_property(key)
+        }
+    }
+
+    /// Given a series of property names, recursively perform a series of gets to obtain the value at the end of the chain.
+    pub fn get_chain(&self, keys: &[&'static str]) -> ShyValue {
+        match keys.first() {
+            Some(key) => {
+                let next_value = self.get_safe(key);
+                next_value.get_chain(&keys[1..])
+            },
+            None => self.shallow_clone()
+        }
     }
 
     //..................................................................
@@ -491,7 +596,7 @@ impl ShyValue {
 
     // Load operator
 
-    /// Load the value of a variable from the context.
+    /// Load the value of a variable or a property chain from the context.
     /// Return an error (ShyValue::Error) if the left_operand is not a Variable 
     /// or no variable with the given name is found in the context.
     pub fn load(left_operand: &Self, ctx: &mut ExecutionContext) -> Self {
@@ -500,6 +605,12 @@ impl ShyValue {
                 match ctx.load(name) {
                     Some(value) => value,
                     None => Self::no_such_variable(name)
+                }
+            },
+            ShyValue::PropertyChain(name_vec) => {
+                match ctx.load_chain(name_vec) {
+                    None => Self::bad_property_chain(name_vec),
+                    Some(loaded_value) => loaded_value
                 }
             },
             _ => Self::not_a_variable(left_operand)
@@ -527,6 +638,10 @@ impl ShyValue {
         ShyValue::error(format!("Left operand must be a variable, not {}", left_operand.type_name()))
     }
 
+    fn bad_property_chain(property_chain: &Vec<&'static str>) -> Self {
+        ShyValue::error(format!("Property chain includes an invalid property: {}", property_chain.join(".")))
+    }
+
     fn no_such_variable(var_name: &String) -> Self {
         ShyValue::error(format!("No variable named {}", var_name))
     }
@@ -537,6 +652,7 @@ impl ShyValue {
                 ctx.store(name, right_operand.clone());
                 right_operand.clone()
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -566,6 +682,7 @@ impl ShyValue {
                     }
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -597,6 +714,7 @@ impl ShyValue {
                     }
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -616,6 +734,7 @@ impl ShyValue {
                     None => ShyValue::error(format!("No such variable named {}", name))
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -657,6 +776,7 @@ impl ShyValue {
                     }
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -682,6 +802,7 @@ impl ShyValue {
                     }
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -707,6 +828,7 @@ impl ShyValue {
                     }
                 }
             },
+            //TODO: ShyValue::PropertyChain
             _ => Self::not_a_variable(left_operand)
         }
     }
@@ -786,28 +908,6 @@ impl ShyValue {
     /// Regex matching operator.
     pub fn not_matches(left_operand: &Self, right_operand: &Self) -> Self {
         ShyValue::not(&ShyValue::matches(left_operand, right_operand))
-    }
-
-    /// Safe Object property navigation.
-    /// If an object does not have the given property, a ShyScalar::Error is returned.
-    /// If a ShyValue::Object is returned, a shallow_clone is created, so that the underlying ShyAssociation is shared.
-    pub fn get(&self, key: &'static str) -> ShyValue {
-        match self {
-            ShyValue::Object(obj) => { 
-                let deref = obj.as_deref();
-                if !deref.can_get_property(key) {
-                    ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
-                }
-                else {
-                    match deref.get(key) {
-                        Some(ShyValue::Object(child_obj)) => ShyValue::Object(child_obj.shallow_clone()),
-                        Some(value) => value.clone(),
-                        _ => ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
-                    }
-                }
-            }
-            _ => ShyValue::Scalar(ShyScalar::Error(format!("No such property {}", key)))
-        }
     }
 }
 
@@ -1318,16 +1418,22 @@ mod tests {
 
     #[test]
     /// Create a nested ShyValue(Object) and verify that we can navigate to the bottom object.
-    fn shyvalue_object() {
-        let mut top_map : HashMap<&'static str, ShyValue> = HashMap::new(); 
-        top_map.set("name", "Number 6".into());
-        let mut bottom_map : HashMap<&'static str, ShyValue> = HashMap::new(); 
-        bottom_map.set("favorite color", "teal".into());
-
-        let mut top_obj = ShyValue::Object(ShyObject::new(&top_map));
-        let mut bottom_obj = ShyValue::Object(ShyObject::new(&bottom_map));
-
-        
+    fn shyvalue_set_and_get() {
+        let top_obj = ShyValue::empty();
+        if let Result::Err(err) = top_obj.set("name", "Bob".into()) {
+            assert!(false, format!("Cannot set name: {:?}", err));
+        }
+        if let Result::Err(err) = top_obj.set("address", ShyValue::empty()) {
+            assert!(false, format!("Cannot set address: {:?}", err));
+        }
+        let expected_value: String = String::from("02180");
+        if let Result::Err(err) = top_obj.get_safe("address").set("ZIP", expected_value.clone().into()) {
+            assert!(false, format!("Cannot set ZIP: {:?}", err));
+        }
+        match top_obj.get_safe("address").get("ZIP") {
+            Ok(ShyValue::Scalar(ShyScalar::String(ref actual_value))) => asserting("Retrieved ZIP code matches").that(actual_value).is_equal_to(&expected_value),
+            _ => assert!(false, format!("Did not retrieve correct ZIP code from the address"))
+        }
     }
 
     // ...................................................................................

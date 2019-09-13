@@ -54,13 +54,17 @@ impl ShyObject {
     /// If any levels of the hierarchy are missing and can be added, add them using the supplied generator.
     /// If at any stage it is not permitted to add or follow a given property in tht path, return None.
     /// If the path vector is empty, return a shallow clone of self.
-    pub fn vivify<'a>(&'a mut self, path: Vec<&'static str>, generator: impl Fn() -> ShyObject) -> Option<ShyObject> {
-        if path.len() == 0 {
+    ///    self ....... Object to look inside
+    ///    path ....... Names of properties to get, in order, to descend from self to its children.
+    ///    depth ...... Number of path components to follow. 
+    ///    generator .. If a level of object is missing, use this to construct it. 
+    pub fn vivify<'a>(&'a mut self, path: Vec<&'static str>, depth: usize, generator: impl Fn() -> ShyObject) -> Option<ShyObject> {
+        if path.len() == 0 || depth == 0 {
             return Some(self.shallow_clone())
         }
         let mut current_object = self.shallow_clone();
         let mut next_object;
-        for key in path {
+        for key in &path[0..depth] {
             {
                 let mut deref = current_object.as_deref_mut();
                 if !deref.can_set_property(key) {
@@ -132,13 +136,13 @@ mod tests {
         let shy_value = ShyValue::Object(shy_obj.shallow_clone());
         let expected_qty = 3;
 
-        match shy_obj.vivify(vec!["customers", "smith", "orders"], || ShyObject::empty()) {
+        match shy_obj.vivify(vec!["customers", "smith", "orders"], 3, || ShyObject::empty()) {
             Some(customers_smith_orders) => {
                 {
                     let mut deref = customers_smith_orders.as_deref_mut();
                     deref.set("quantity", expected_qty.into());
                 }
-                match shy_value.get("customers").get("smith").get("orders").get("quantity") {
+                match shy_value.get_safe("customers").get_safe("smith").get_safe("orders").get_safe("quantity") {
                     ShyValue::Scalar(ShyScalar::Integer(actual_qty)) => { 
                         assert_eq!(expected_qty, actual_qty);
                         ()

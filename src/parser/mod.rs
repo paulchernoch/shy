@@ -38,6 +38,8 @@ pub mod shy_object;
 /// Once reordered, the result of the expression may be efficiently computed from the postfix stack of tokens.
 #[derive(Debug)]
 pub struct ShuntingYard<'a> {
+    /// Weird Rust idiom to define the desired variance/covariance since you are not allowed to have an unbounded lifetime.
+    /// See http://web.mit.edu/rust-lang_v1.25/arch/amd64_ubuntu1404/share/doc/rust/html/nomicon/phantom-data.html
     marker: PhantomData<&'a i64>,
 
     /// The input expression prior to parsing.
@@ -216,27 +218,29 @@ impl<'a> ShuntingYard<'a> {
         Ok(self.postfix_order.len())
     }
 
-    /// Decide if the top of the postfix_order stack is a Variable AND it should be considered 
+    /// Decide if the top of the postfix_order stack is a Variable or PropertyChain AND it should be considered 
     /// an rvalue whose value should be loaded from context,
     /// not an lvalue into which a result should be stored.
     /// If an rvalue, we should push a Load operator token onto postfix_order. (Pushing Load is not done here.)
-    /// It is an rvalue if the top of the stack holds a ShyToken::Value(ShyValue::Variable) 
+    /// It is an rvalue if the top of the stack holds a ShyToken::Value(ShyValue::Variable) or a ShyToken::Value(ShyValue::PropertyChain)
     /// and the given stoken is NOT an assignment operator or post-increment or post-decrement operator.
     fn is_rvalue_on_stack(&self, stoken: &ShyToken) -> bool {
+        let is_assignment_operator = match stoken {
+            ShyToken::Operator(op) => op.is_assignment(), 
+            _ => false 
+        };
         match &self.postfix_order.last() {
-            Some(ShyToken::Value(ShyValue::Variable(_))) => {
-                match stoken {
-                    ShyToken::Operator(op) if !op.is_assignment() => { true }, // Top of stack is a Variable used as an rvalue
-                    _ => false // Token is not an operator (unlikely) or is an assignment operator (making the variable an lvalue) 
-                }
-            },
+            Some(ShyToken::Value(ShyValue::Variable(_))) => !is_assignment_operator,
+            Some(ShyToken::Value(ShyValue::PropertyChain(_))) => !is_assignment_operator,
             _ => false // Top of stack is NOT a Variable
         }
     }
 
+    /// True if the last token in postfix order is a variable or a property chain.
     fn is_last_token_variable(&self) -> bool {
         match &self.postfix_order.last() {
-            Some(ShyToken::Value(ShyValue::Variable(_))) => { true },
+            Some(ShyToken::Value(ShyValue::Variable(_))) => true,
+            Some(ShyToken::Value(ShyValue::PropertyChain(_))) => true,
             _ => false // Top of stack is NOT a Variable
         }
     }
@@ -758,7 +762,7 @@ mod tests {
         ctx.store(&"d".into(), 4.into());
         let expected: ShyValue = 14.into();
         execute_test_case("a = b + c * d", &mut ctx, &expected, false); 
-        asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
     }
 
     #[test]
@@ -769,7 +773,7 @@ mod tests {
         ctx.store(&"d".into(), 25.into());
         let expected: ShyValue = 5.0.into();
         execute_test_case("a = ((b^3 + c) * √d - 10)/9", &mut ctx, &expected, true); 
-        asserting("result written to context").that(&ctx.load(&"a".into()).unwrap()).is_equal_to(&expected);
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
     }
 
     #[test]
@@ -787,9 +791,9 @@ mod tests {
         ctx.store(&"a".into(), 10.into());
         let expected: ShyValue = 80.into();
         execute_test_case("x = 2 * a; y = a^2; z = y - x", &mut ctx, &expected, true); 
-        asserting("first result written to context").that(&ctx.load(&"x".into()).unwrap()).is_equal_to(&20.into());
-        asserting("second result written to context").that(&ctx.load(&"y".into()).unwrap()).is_equal_to(&100.into());
-        asserting("third result written to context").that(&ctx.load(&"z".into()).unwrap()).is_equal_to(&80.into());
+        asserting("first result written to context").that(&ctx.load(&"x").unwrap()).is_equal_to(&20.into());
+        asserting("second result written to context").that(&ctx.load(&"y").unwrap()).is_equal_to(&100.into());
+        asserting("third result written to context").that(&ctx.load(&"z").unwrap()).is_equal_to(&80.into());
     }
 
 //..................................................................
