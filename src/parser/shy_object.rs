@@ -97,7 +97,7 @@ impl Clone for ShyObject {
 
 impl PartialEq for ShyObject {
     fn eq(&self, other: &ShyObject) -> bool {
-        let other_assoc: &ShyAssociation = &*other.association.borrow();
+        let other_assoc: &dyn ShyAssociation = &*other.association.borrow();
         self.association.borrow().equals_association(other_assoc)
     }
 }

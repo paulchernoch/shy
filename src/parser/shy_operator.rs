@@ -4,11 +4,11 @@ use crate::lexer::ParserToken;
 
 //..................................................................
 
-/// A ShyOperator represents a specific operator that may be applied to operands (ShyValues).
-/// Each ShyOperator has an operator precedence. 
-/// All operators are left associative, except the assignment operators, which are right associative.
 custom_derive! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(ShyOperatorVariants), IterVariantNames(ShyOperatorVariantNames))]
+    /// A ShyOperator represents a specific operator that may be applied to operands (ShyValues).
+    /// Each ShyOperator has an operator precedence. 
+    /// All operators are left associative, except the assignment operators, which are right associative.
     pub enum ShyOperator {
         /// Load a value from a variable in the execution context passed in by the caller. 
         /// The variable name will be in a corresponding ShyToken.

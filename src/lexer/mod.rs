@@ -105,7 +105,7 @@ impl ParserToken {
 
     /// The value of the character or string stored in the token.
     pub fn val(&self) -> String {
-        let mut error_message : String;
+        let error_message : String;
         let return_val = match self {
             ParserToken::StringLiteral(s) => s,
             ParserToken::Identifier(s) => s,

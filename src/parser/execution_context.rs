@@ -18,7 +18,7 @@ pub struct ExecutionContext<'a> {
     functions: HashMap<String, ShyFunction<'a>>
 }
 
-type ShyFunction<'a> = Box<(Fn(ShyValue) -> ShyValue + 'a)>;
+type ShyFunction<'a> = Box<(dyn Fn(ShyValue) -> ShyValue + 'a)>;
 
 type Ctx<'a> = ExecutionContext<'a>;
 

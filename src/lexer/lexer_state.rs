@@ -6,10 +6,10 @@
 
 //..................................................................
 
-/// LexerState names the State of the Lexer's stack automata.
 custom_derive! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(LexerStateVariants), IterVariantNames(LexerStateVariantNames))]
-    pub enum LexerState {
+    /// LexerState names the State of the Lexer's stack automata.
+   pub enum LexerState {
         Start,
         Goal,
         Error,

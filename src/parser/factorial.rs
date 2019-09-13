@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 //..................................................................
 
-/// Factorial lookup for integers.
+// Factorial lookup for integers.
 
 lazy_static! {
     static ref FACTORIAL_FIXED: [i64; 21] = {
@@ -44,7 +44,7 @@ pub fn factorial(n : i64) -> Option<i64> {
 
 //..................................................................
 
-/// Approximate Factorial lookup for numbers up to and including 170!.
+// Approximate Factorial lookup for numbers up to and including 170!.
 
 lazy_static! {
     static ref FACTORIAL_FLOAT: [f64; 171] = {

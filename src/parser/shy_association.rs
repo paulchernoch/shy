@@ -30,13 +30,13 @@ pub trait ShyAssociation {
     fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a>;
 
     /// An &Any can be cast to a reference to a concrete type.
-    fn as_any(&self) -> &Any;
+    fn as_any(&self) -> &dyn Any;
 
     /// Compare two ShyAssociation for equality.
-    fn equals_association(&self, other: &ShyAssociation) -> bool;
+    fn equals_association(&self, other: &dyn ShyAssociation) -> bool;
 
     /// Create a deep copy of the ShyAssociation and box it up in an Rc and RefCell, to preserve interior mutability.
-    fn clone_association(&self) -> Rc<RefCell<ShyAssociation>>;
+    fn clone_association(&self) -> Rc<RefCell<dyn ShyAssociation>>;
 
     /// Supports the writing of a Debug formatter
     fn to_indented_string<'a>(&self, indent_by: usize, tab_size: usize) -> String;
@@ -70,11 +70,11 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
         Box::new(self.keys().cloned())
     }
 
-    fn as_any(&self) -> &Any {
+    fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn equals_association(&self, other: &ShyAssociation) -> bool {
+    fn equals_association(&self, other: &dyn ShyAssociation) -> bool {
         // Do a type-safe casting. If the types are different,
         // return false, otherwise test the values for equality.
         other
@@ -83,7 +83,7 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
             .map_or(false, |a| self == a)
     }
 
-    fn clone_association(&self) -> Rc<RefCell<ShyAssociation>> {
+    fn clone_association(&self) -> Rc<RefCell<dyn ShyAssociation>> {
         Rc::new(RefCell::new(self.clone()))
     }
 
@@ -123,7 +123,7 @@ mod tests {
         let mut dictionary : HashMap<&'static str, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         dictionary.set("name", value);
-        let association: &mut ShyAssociation = &mut dictionary;
+        let association: &mut dyn ShyAssociation = &mut dictionary;
         asserting("Can get property when Key is defined").that(&association.can_get_property("name")).is_equal_to(true);
         asserting("Can not get property when Key is not defined").that(&association.can_get_property("age")).is_equal_to(false);
     }
@@ -133,7 +133,7 @@ mod tests {
         let mut dictionary : HashMap<&'static str, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         dictionary.set("name", value);
-        let association: &mut ShyAssociation = &mut dictionary;
+        let association: &mut dyn ShyAssociation = &mut dictionary;
         asserting("Can set property when Key is defined").that(&association.can_set_property("name")).is_equal_to(true);
         asserting("Can set property when Key is not defined").that(&association.can_set_property("age")).is_equal_to(true);
     }
@@ -169,8 +169,8 @@ mod tests {
         dictionary1.set("name", value.clone());
         dictionary1.set("age", age);
         let mut dictionary2 = dictionary1.clone();
-        let association1: &mut ShyAssociation = &mut dictionary1;
-        let association2: &mut ShyAssociation = &mut dictionary2;
+        let association1: &mut dyn ShyAssociation = &mut dictionary1;
+        let association2: &mut dyn ShyAssociation = &mut dictionary2;
         // DISABLE UNTIL WE GET EQUALITY WORKING
         asserting("equality works for ShyAssociations").that(&association1.equals_association(association2)).is_equal_to(true);
         

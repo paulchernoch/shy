@@ -35,7 +35,7 @@ use super::shy_object::ShyObject;
 
 //..................................................................
 
-/// Checking a string to see if it is truthy or falsy.
+// Checking a string to see if it is truthy or falsy.
 
 lazy_static! {
     static ref FALSEY: HashSet<&'static str> = {
@@ -812,7 +812,7 @@ impl ShyValue {
     /// Store the result in the context for the same variable.
     /// If the variable is not initially defined, initialize it to the value of the right_operand.
     fn common_assign(left_operand: &Self, right_operand: &Self, ctx: &mut ExecutionContext, 
-        op: &Fn(&Self, &Self) -> Self) -> Self {
+        op: &dyn Fn(&Self, &Self) -> Self) -> Self {
         match left_operand {
             ShyValue::Variable(name) => {
                 let current_value = ctx.load(name);
@@ -1441,20 +1441,20 @@ mod tests {
     // Test helpers
 
     /// Test a binary operator (excluding assignment)
-    fn binary_operator_test<'a>(left: &ShyValue, right: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue, &ShyValue) -> ShyValue) {
+    fn binary_operator_test<'a>(left: &ShyValue, right: &ShyValue, expected: &ShyValue, op: &dyn Fn(&ShyValue, &ShyValue) -> ShyValue) {
         let actual = op(left, right);
         asserting(&format!("Operation on {:?} and {:?} should yield {:?}", left, right, expected)).that(&actual).is_equal_to(expected);
     }
 
     /// Test a unary operator
-    fn unary_operator_test<'a>(left: &ShyValue, expected: &ShyValue, op: &Fn(&ShyValue) -> ShyValue) {
+    fn unary_operator_test<'a>(left: &ShyValue, expected: &ShyValue, op: &dyn Fn(&ShyValue) -> ShyValue) {
         let actual = op(left);
         asserting(&format!("Operation on {:?} should yield {:?}", left, expected)).that(&actual).is_equal_to(expected);
     }
 
     fn assignment_operator_test<'a>(left: &ShyValue, right: &ShyValue, 
             ctx: &mut ExecutionContext, expected: &ShyValue, 
-            op: &Fn(&ShyValue, &ShyValue, &mut ExecutionContext) -> ShyValue) {
+            op: &dyn Fn(&ShyValue, &ShyValue, &mut ExecutionContext) -> ShyValue) {
         let result = op(left, right, ctx);
         asserting("Return value matches").that(&result).is_equal_to(expected);
         match left {
@@ -1467,7 +1467,7 @@ mod tests {
 
     fn post_operator_test<'a>(left: &ShyValue, 
             ctx: &mut ExecutionContext, expected_result: &ShyValue, expected_store: &ShyValue,
-            op: &Fn(&ShyValue, &mut ExecutionContext) -> ShyValue) {
+            op: &dyn Fn(&ShyValue, &mut ExecutionContext) -> ShyValue) {
         let result = op(left, ctx);
         asserting("Return value matches").that(&result).is_equal_to(expected_result);
         match left {
