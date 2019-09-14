@@ -31,11 +31,12 @@ pub struct LexerError {
 
 //..................................................................
 
-/// Tokens returned by the Lexer.
 #[derive(Clone, PartialEq, Eq, Debug)]
+/// Tokens returned by the Lexer.
 pub enum ParserToken {
     StringLiteral(String),
     Identifier(String),
+    PropertyChain(Vec<String>),
     Function(String),
     LogicalNotOp,
     FactorialOp,
@@ -72,6 +73,7 @@ impl ParserToken {
         match self {
             ParserToken::StringLiteral(_) => "StringLiteral",
             ParserToken::Identifier(_) => "Identifier",
+            ParserToken::PropertyChain(_) => "PropertyChain",
             ParserToken::Function(_) => "Function",
             ParserToken::LogicalNotOp => "LogicalNotOp",
             ParserToken::FactorialOp => "FactorialOp",
@@ -106,9 +108,14 @@ impl ParserToken {
     /// The value of the character or string stored in the token.
     pub fn val(&self) -> String {
         let error_message : String;
-        let return_val = match self {
+        let mut temp_string = String::new();
+        let return_val: &str = match self {
             ParserToken::StringLiteral(s) => s,
             ParserToken::Identifier(s) => s,
+            ParserToken::PropertyChain(vec) => {
+                 temp_string.push_str(&vec.join("."));
+                 &temp_string
+            },
             ParserToken::Function(s) => s,
             ParserToken::LogicalNotOp => "!",
             ParserToken::FactorialOp => "!",
@@ -143,6 +150,19 @@ impl ParserToken {
 
         };
         return_val.to_string()
+    }
+
+    pub fn new_property_chain(chain_as_string : &String) -> Self {
+        ParserToken::PropertyChain(chain_as_string.split(".").map(|s| s.to_string()).collect())
+    }
+
+    pub fn to_property_chain(&self) -> Self {
+        match self {
+            ParserToken::Identifier(ref name) if name.find(".") != None => {
+                ParserToken::new_property_chain(name)
+            },
+            _ => self.clone()
+        }
     }
 }
 
@@ -517,19 +537,23 @@ impl<'e> Lexer<'e> {
     /// Identifier state transitions, part of building an identifier or a function name.
     fn identifier(&mut self, e: LexerEvent) -> Option<ParserToken> {
         match e {
-            LexerEvent::Letter(_) | LexerEvent::Digit(_) | LexerEvent::DollarUnderscore(_) => self.reenter_with_push(e),
+            LexerEvent::Letter(_) | LexerEvent::Digit(_)
+            | LexerEvent::DollarUnderscore(_) | LexerEvent::Period => self.reenter_with_push(e),
             LexerEvent::ExclamationPoint => if self.does_next_token_match_string("=".to_owned()) {
                 // The exclamation point is part of a not equals operator (!=). Put it back for reuse.
-                self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s)), e)
+                // We call to_property_chain in case there are periods in the name, indicating a series of property references.
+                // If so, we make it into a PropertyChain.
+                self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s).to_property_chain()), e)
             }
             else {
                 // The exclamation point is the factorial operator. Yield two tokens, an identifier followed by a factorial.
-                self.transition_with_double_yield(LexerState::Empty, |s| Some(ParserToken::Identifier(s)), ParserToken::FactorialOp)
+                self.transition_with_double_yield(LexerState::Empty, |s| Some(ParserToken::Identifier(s).to_property_chain()), ParserToken::FactorialOp)
             },
-            // If an identifier is followed by an open parenthesis, it is a function name
+            // If an identifier is followed by an open parenthesis, it is a function name.
+            // Do not attempt to make it into a PropertyChain.
             LexerEvent::ExpressionStarter('(') => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Function(s)), e),
             LexerEvent::Space => self.transition_without_yield(LexerState::FunctionName),
-            _ => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s)), e)
+            _ => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s).to_property_chain()), e)
         }
     }
 
@@ -540,7 +564,7 @@ impl<'e> Lexer<'e> {
         match e {
             LexerEvent::Space => self.reenter_without_yield(),
             LexerEvent::ExpressionStarter('(') => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Function(s)), e),
-            _ => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s)), e)
+            _ => self.transition_with_pop_and_put_back(LexerState::Empty, |s| Some(ParserToken::Identifier(s).to_property_chain()), e)
         }
     }
 
@@ -974,6 +998,17 @@ mod tests {
                 ParserToken::AdditiveOp("-".to_string()),
                 ParserToken::Integer("2".to_string()),
                 ParserToken::PowerOp("10".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    /// Verify the Lexer can parse property chains with periods
+    fn property_chain() {
+        lexer_test_helper(
+            "person.address.zip", 
+            vec![
+                ParserToken::PropertyChain(vec!["person".into(), "address".into(), "zip".into()])
             ]
         );
     }

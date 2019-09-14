@@ -137,7 +137,7 @@ impl PartialOrd for ShyValue {
     }
 }
 
-impl From<ParserToken> for ShyValue {
+impl<'a> From<ParserToken> for ShyValue {
     fn from(parser_token: ParserToken) -> Self {
         match parser_token {
             ParserToken::Function(s) => ShyValue::FunctionName(s),
@@ -948,7 +948,7 @@ impl ShyToken{
 }
 
 /// Convert a ParserToken into a ShyToken.
-impl From<ParserToken> for ShyToken{
+impl<'a> From<ParserToken> for ShyToken{
     fn from(parser_token: ParserToken) -> Self {
         let op: ShyOperator = parser_token.clone().into();
         match op {
