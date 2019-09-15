@@ -2,7 +2,7 @@
 
 #[allow(unused_imports)]
 
-use crate::lexer::ParserToken;
+use crate::lexer::parser_token::ParserToken;
 use std::mem::discriminant;
 use std::f64;
 use std::convert::TryFrom;

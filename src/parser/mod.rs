@@ -3,7 +3,7 @@
 #[allow(unused_imports)]
 use std::fmt::Result;
 use std::marker::PhantomData;
-use crate::lexer::ParserToken;
+use crate::lexer::parser_token::ParserToken;
 use crate::lexer::Lexer;
 
 pub mod indent;

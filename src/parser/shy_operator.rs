@@ -1,6 +1,6 @@
 
 use super::associativity::Associativity;
-use crate::lexer::ParserToken;
+use crate::lexer::parser_token::ParserToken;
 
 //..................................................................
 
