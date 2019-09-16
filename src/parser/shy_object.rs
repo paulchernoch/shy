@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use super::shy_association::*;
 use super::shy_token::ShyValue;
-use super::shy_scalar::ShyScalar;
 
 /// A Holder for a ShyAssociation that permits the implementation of Clone, PartialEq, and Debug for a Trait object.
 pub struct ShyObject {
@@ -58,24 +57,25 @@ impl ShyObject {
     ///    path ....... Names of properties to get, in order, to descend from self to its children.
     ///    depth ...... Number of path components to follow. 
     ///    generator .. If a level of object is missing, use this to construct it. 
-    pub fn vivify<'a>(&'a mut self, path: Vec<&'static str>, depth: usize, generator: impl Fn() -> ShyObject) -> Option<ShyObject> {
+    pub fn vivify<'a, S>(&'a mut self, path: Vec<S>, depth: usize, generator: impl Fn() -> ShyObject) -> Option<ShyObject>
+    where S : Display {
         if path.len() == 0 || depth == 0 {
             return Some(self.shallow_clone())
         }
         let mut current_object = self.shallow_clone();
         let mut next_object;
-        for key in &path[0..depth] {
+        for key in path[0..depth].iter().map(|k| k.to_string()) {
             {
                 let mut deref = current_object.as_deref_mut();
-                if !deref.can_set_property(key) {
+                if !deref.can_set_property(&key) {
                     return None
                 }
-                if !deref.can_get_property(key) {
+                if !deref.can_get_property(&key) {
                     next_object = generator();
-                    deref.set(key, ShyValue::Object(next_object.shallow_clone()));
+                    deref.set(&key, ShyValue::Object(next_object.shallow_clone()));
                 }
                 else { 
-                    match deref.get(key) {
+                    match deref.get(&key) {
                         Some(ShyValue::Object(obj)) => next_object = obj.shallow_clone(),
                         _ => return None
                     }
@@ -116,9 +116,11 @@ mod tests {
     #[allow(unused_imports)]
     use spectral::prelude::*;
 
+    use super::super::shy_scalar::ShyScalar;
+
     #[test]
     fn as_deref() {
-        let mut dictionary1 : HashMap<&str, ShyValue> = HashMap::new();
+        let mut dictionary1 : HashMap<String, ShyValue> = HashMap::new();
         set_into(&mut dictionary1, "name", "The Doctor");
         set_into(&mut dictionary1, "season", 12);
         set_into(&mut dictionary1, "popular", true);

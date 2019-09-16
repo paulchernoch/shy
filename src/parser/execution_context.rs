@@ -95,21 +95,25 @@ impl<'a> ExecutionContext<'a> {
     }
 
     /// Store a new value in the object indicated by the path of property names. 
-    pub fn store_chain(&mut self, path: &Vec<&'static str>, val: ShyValue) {
+    pub fn store_chain(&mut self, path: &Vec<String>, val: ShyValue) {
         let path_len = path.len();
         match path_len {
             0 => (),
-            1 => { self.variables.insert(path[0].into(), val); () }
+            1 => { self.variables.insert(path[0].clone(), val); () }
             _ => {
                 // We strip one property off the path, because the lvalue must be one link back in the chain 
                 // so that we can perform the final assignment using the last property in the chain.
                 if let Some(ShyValue::Object(lvalue)) = self.vivify(&path[..path_len-1].to_vec()) {
-                    lvalue.as_deref_mut().set(path[path_len-1], val);
+                    lvalue.as_deref_mut().set(&path[path_len-1], val);
                 }
                 ()
             }
         }
         
+    }
+
+    fn string_to_static_str(s: String) -> &'static str {
+        Box::leak(s.into_boxed_str())
     }
 
     /// Obtain an lvalue for the given property chain, creating any intervening missing objects if possible. 
@@ -120,13 +124,13 @@ impl<'a> ExecutionContext<'a> {
     ///     - if part of the path already exists but is not a ShyObject
     ///     - if part of the path refers to a ShyObject whose underlying ShyAssociation does not permit that property to be set 
     /// Otherwise, returns a Some(ShyValue::Object). This may be used as an lvalue for setting a property.
-    fn vivify(&mut self, path: &Vec<&'static str>) -> Option<ShyValue> {
+    fn vivify(&mut self, path: &Vec<String>) -> Option<ShyValue> {
         let path_len = path.len();
         match path_len {
             0 => None, 
             1 => {
-                let variable = path[0];
-                match self.variables.get(variable) {
+                let variable = path[0].clone();
+                match self.variables.get(&variable) {
                     None => {
                         let obj = ShyObject::empty();
                         self.variables.insert(variable.into(), ShyValue::Object(obj.shallow_clone()));
@@ -182,11 +186,11 @@ impl<'a> ExecutionContext<'a> {
     /// made to the context to be visible to the caller.
     /// The first name in the chain must be a variable name in the context. 
     /// The remaining names must be property names that can be traversed from object to object via get.
-    pub fn load_chain(&self, chain: &Vec<&'static str>) -> Option<ShyValue> { 
+    pub fn load_chain(&self, chain: &Vec<String>) -> Option<ShyValue> { 
         match chain.first() {
             None => None,
             Some(variable) => {
-                let variable_str: &String = &(*variable).into();
+                let variable_str: &String = &variable;
                 match self.load(variable_str) {
                     Some(ShyValue::Object(ref obj)) if chain.len() == 1 => {
                         Some(ShyValue::Object(obj.shallow_clone()))

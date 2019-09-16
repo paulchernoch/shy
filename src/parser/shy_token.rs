@@ -82,7 +82,7 @@ pub enum ShyValue {
     Variable(String),
 
     /// A variable name followed by a series of nested property references
-    PropertyChain(Vec<&'static str>),
+    PropertyChain(Vec<String>),
 
     /// Name of a function in the context to be called.
     FunctionName(String),
@@ -144,6 +144,7 @@ impl<'a> From<ParserToken> for ShyValue {
             ParserToken::Identifier(ref s) if *s == "true"  => ShyValue::Scalar(ShyScalar::Boolean(true)),
             ParserToken::Identifier(ref s) if *s == "false" => ShyValue::Scalar(ShyScalar::Boolean(false)),
             ParserToken::Identifier(s) => ShyValue::Variable(s),
+            ParserToken::PropertyChain(s) => ShyValue::PropertyChain(s),
             ParserToken::Integer(s) => ShyValue::Scalar(ShyScalar::Integer(s.parse::<i64>().unwrap())),
             ParserToken::Rational(s) => ShyValue::Scalar(ShyScalar::Rational(s.parse::<f64>().unwrap())),
             ParserToken::StringLiteral(s) => ShyValue::Scalar(ShyScalar::String(s)),
@@ -217,7 +218,7 @@ impl ShyValue {
         ShyValue::error(format!("Cannot get or set properties on a non-object of type {}", self.type_name()))
     }
 
-    fn invalid_property(property_name: &'static str) -> Self {
+    fn invalid_property(property_name: &str) -> Self {
         ShyValue::error(format!("No such property '{}'", property_name))
     }
 
@@ -268,7 +269,7 @@ impl ShyValue {
     /// Attempt to regard self as a ShyValue::Object and get the value of the property corresponding to the given key.
     /// If an object does not have the given property, a ShyScalar::Error is returned.
     /// If a ShyValue::Object is returned, a shallow_clone is created, so that the underlying ShyAssociation is shared.
-    pub fn get_safe(&self, key: &'static str) -> ShyValue {
+    pub fn get_safe(&self, key: &str) -> ShyValue {
         match self {
             ShyValue::Object(obj) => { 
                 let deref = obj.as_deref();
@@ -287,7 +288,7 @@ impl ShyValue {
     }
 
     /// Given a series of property names, recursively perform a series of gets to obtain the value at the end of the chain.
-    pub fn get_chain(&self, keys: &[&'static str]) -> ShyValue {
+    pub fn get_chain(&self, keys: &[String]) -> ShyValue {
         match keys.first() {
             Some(key) => {
                 let next_value = self.get_safe(key);
@@ -638,7 +639,7 @@ impl ShyValue {
         ShyValue::error(format!("Left operand must be a variable, not {}", left_operand.type_name()))
     }
 
-    fn bad_property_chain(property_chain: &Vec<&'static str>) -> Self {
+    fn bad_property_chain(property_chain: &Vec<String>) -> Self {
         ShyValue::error(format!("Property chain includes an invalid property: {}", property_chain.join(".")))
     }
 

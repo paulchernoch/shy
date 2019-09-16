@@ -267,6 +267,7 @@ impl From<ParserToken> for ShyOperator {
             ParserToken::Regex(_) => ShyOperator::Operand,
             ParserToken::StringLiteral(_) => ShyOperator::Operand,
             ParserToken::Identifier(_) => ShyOperator::Operand,
+            ParserToken::PropertyChain(_) => ShyOperator::Operand,
             ParserToken::Function(_) => ShyOperator::FunctionCall,
             ParserToken::Error(_) => ShyOperator::Error, 
             _ => ShyOperator::Error

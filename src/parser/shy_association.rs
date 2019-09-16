@@ -13,21 +13,21 @@ use std::any::Any;
 pub trait ShyAssociation {
     /// Set the named property to a new value and return the previous value.
     /// If it is not permitted to set this property or it had no value previously, return None.
-    fn set(&mut self, property_name: &'static str, property_value: ShyValue) -> Option<ShyValue>;
+    fn set(&mut self, property_name: &str, property_value: ShyValue) -> Option<ShyValue>;
 
     /// Get the value of the named property.
     /// If the property has no value or the property does not exist, return None.
-    fn get(&self, property_name: &'static str) -> Option<&ShyValue>;
+    fn get(&self, property_name: &str) -> Option<&ShyValue>;
 
     /// True if is is possible to set the named property. 
     /// This may be true even if the property does not currently have a value.
-    fn can_set_property(&self, property_name: &'static str) -> bool;
+    fn can_set_property(&self, property_name: &str) -> bool;
 
     /// True if the property currently has a value that can be retrieved, false otherwise.
-    fn can_get_property(&self, property_name: &'static str) -> bool;
+    fn can_get_property(&self, property_name: &str) -> bool;
 
     /// Boxes up an iterator over all the property names for the association.
-    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a>;
+    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=String> + 'a>;
 
     /// An &Any can be cast to a reference to a concrete type.
     fn as_any(&self) -> &dyn Any;
@@ -45,28 +45,28 @@ pub trait ShyAssociation {
 /// Permit setting the value for a key in a ShyAssociation using any value that can be converted into a ShyValue.
 /// Note: I would prefer that this be a method of the ShyAssociation trait, but doing so yields this error:
 ///    method `set_into` has generic type parameters rustc(E0038).
-pub fn set_into<A : ShyAssociation, V: Into<ShyValue> + Sized>(association: &mut A, property_name: &'static str, property_value: V) -> Option<ShyValue> {
+pub fn set_into<A : ShyAssociation, V: Into<ShyValue> + Sized>(association: &mut A, property_name: &str, property_value: V) -> Option<ShyValue> {
     association.set(property_name, property_value.into())
 }
 
-impl ShyAssociation for HashMap<&'static str, ShyValue> {
-    fn set(&mut self, property_name: &'static str, property_value: ShyValue) -> Option<ShyValue> {
-        self.insert(property_name, property_value)
+impl ShyAssociation for HashMap<String, ShyValue> {
+    fn set(&mut self, property_name: &str, property_value: ShyValue) -> Option<ShyValue> {
+        self.insert(property_name.into(), property_value)
     }
 
-    fn get(&self, property_name: &'static str) -> Option<&ShyValue> {
+    fn get(&self, property_name: &str) -> Option<&ShyValue> {
         HashMap::get(self, property_name)
     }
 
-    fn can_set_property(&self, _property_name: &'static str) -> bool {
+    fn can_set_property(&self, _property_name: &str) -> bool {
         true
     }
 
-    fn can_get_property(&self, property_name: &'static str) -> bool {
+    fn can_get_property(&self, property_name: &str) -> bool {
         self.contains_key(property_name)
     }
 
-    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=&'static str> + 'a> {
+    fn keys<'a>(&'a self) -> Box<dyn Iterator<Item=String> + 'a> {
         Box::new(self.keys().cloned())
     }
 
@@ -93,10 +93,10 @@ impl ShyAssociation for HashMap<&'static str, ShyValue> {
         let mut indented = String::new();
         indented.push_str(&"{\n".indent_display(indent_by));
         for key_ptr in sorted(self.keys()) {
-            let key: &'a str = *key_ptr;
-            match self.get(key) {
+            let key = key_ptr.clone();
+            match self.get(&key) {
                 Some(value) => {
-                    let s = vec![key, ": ", &write_debug(value, "Error")].concat();
+                    let s = vec![key.as_str(), ": ", &write_debug(value, "Error")].concat();
                     indented.push_str(&s.indent_display(indent_by + tab_size))
                 },
                 None => indented.push_str(&"?".indent_display(indent_by + tab_size))
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn can_get_property() {
-        let mut dictionary : HashMap<&'static str, ShyValue> = HashMap::new();
+        let mut dictionary : HashMap<String, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         dictionary.set("name", value);
         let association: &mut dyn ShyAssociation = &mut dictionary;
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn can_set_property() {
-        let mut dictionary : HashMap<&'static str, ShyValue> = HashMap::new();
+        let mut dictionary : HashMap<String, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         dictionary.set("name", value);
         let association: &mut dyn ShyAssociation = &mut dictionary;
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn get() {
-        let mut dictionary : HashMap<&'static str, ShyValue> = HashMap::new();
+        let mut dictionary : HashMap<String, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         dictionary.set("name", value.clone());
         let association: &dyn ShyAssociation = &dictionary;
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn set() {
-        let mut dictionary : HashMap<&str, ShyValue> = HashMap::new();
+        let mut dictionary : HashMap<String, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         let new_value: ShyValue = "Merriam".into();
         let age: ShyValue = 50.into();
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn equality() {
-        let mut dictionary1 : HashMap<&str, ShyValue> = HashMap::new();
+        let mut dictionary1 : HashMap<String, ShyValue> = HashMap::new();
         let value: ShyValue = "Webster".into();
         let age: ShyValue = 50.into();
         dictionary1.set("name", value.clone());
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn to_indented_string() {
-        let mut dictionary1 : HashMap<&str, ShyValue> = HashMap::new();
+        let mut dictionary1 : HashMap<String, ShyValue> = HashMap::new();
         set_into(&mut dictionary1, "name", "The Doctor");
         set_into(&mut dictionary1, "season", 12);
         set_into(&mut dictionary1, "popular", true);
