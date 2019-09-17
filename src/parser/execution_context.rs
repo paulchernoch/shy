@@ -95,18 +95,22 @@ impl<'a> ExecutionContext<'a> {
     }
 
     /// Store a new value in the object indicated by the path of property names. 
-    pub fn store_chain(&mut self, path: &Vec<String>, val: ShyValue) {
+    /// Returns a Result to indicate success or failure, since it may not be possible to set the value for the given path.
+    pub fn store_chain(&mut self, path: &Vec<String>, val: ShyValue) -> Result<(), ShyValue> {
         let path_len = path.len();
         match path_len {
-            0 => (),
-            1 => { self.variables.insert(path[0].clone(), val); () }
+            0 => Ok(()),
+            1 => { self.variables.insert(path[0].clone(), val); Ok(()) }
             _ => {
                 // We strip one property off the path, because the lvalue must be one link back in the chain 
                 // so that we can perform the final assignment using the last property in the chain.
                 if let Some(ShyValue::Object(lvalue)) = self.vivify(&path[..path_len-1].to_vec()) {
                     lvalue.as_deref_mut().set(&path[path_len-1], val);
+                    Ok(())
                 }
-                ()
+                else {
+                    Err(ShyValue::bad_property_chain(path))
+                }
             }
         }
         
