@@ -538,6 +538,8 @@ mod tests {
     #[allow(unused_imports)]
     use spectral::prelude::*;
 
+    use super::shy_object::ShyObject;
+
     /// Verify that the tokens for "2 + 2" are correctly rearranged into infix order.
     #[test]
     fn compile_2_plus_2() {
@@ -794,6 +796,40 @@ mod tests {
         asserting("first result written to context").that(&ctx.load(&"x").unwrap()).is_equal_to(&20.into());
         asserting("second result written to context").that(&ctx.load(&"y").unwrap()).is_equal_to(&100.into());
         asserting("third result written to context").that(&ctx.load(&"z").unwrap()).is_equal_to(&80.into());
+    }
+
+    /// Verify that a value stored in a ShyObject can be retrieved by its property path and used in an expression.
+    #[test]
+    fn exec_path_load() {
+        let mut ctx = ExecutionContext::default();
+        let car = ShyObject::empty();
+        car.as_deref_mut().set("speed", 75.0.into());
+        ctx.store(&"vehicle".into(), ShyValue::Object(car));
+        let expected: ShyValue = true.into();
+        execute_test_case("speeding = vehicle.speed > 65.0", &mut ctx, &expected, true); 
+        asserting("speeding value written to context").that(&ctx.load(&"speeding").unwrap()).is_equal_to(&expected);
+    }
+
+    /// Verify that an existent path can be incremented from an actual value of zero to a value of one.
+    #[test]
+    fn exec_increment_existing_path() {
+        let mut ctx = ExecutionContext::default();
+        let gifts = ShyObject::empty();
+        gifts.as_deref_mut().set("count", 0.into());
+        ctx.store(&"wedding_gifts".into(), ShyValue::Object(gifts));
+
+        let expected: ShyValue = 1.into();
+        execute_test_case("wedding_gifts.count ++", &mut ctx, &expected, true); 
+        asserting("incremented count of known path works").that(&ctx.load(&"wedding_gifts.count").unwrap()).is_equal_to(&expected);
+    }
+
+    /// Verify that a nonexistent path can be autovivified and incremented from an inferred value of zero to a value of one.
+    #[test]
+    fn exec_increment_missing_path() {
+        let mut ctx = ExecutionContext::default();
+        let expected: ShyValue = 1.into();
+        execute_test_case("wedding_gifts.count ++", &mut ctx, &expected, true); 
+        asserting("incremented count of unknown path works").that(&ctx.load(&"wedding_gifts.count").unwrap()).is_equal_to(&expected);
     }
 
 //..................................................................
