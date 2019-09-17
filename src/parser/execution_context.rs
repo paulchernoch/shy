@@ -212,6 +212,68 @@ impl<'a> ExecutionContext<'a> {
         }
     }
 
+    /// Perform the common tasks associated with updating a variable associated with a property chain.
+    /// Address these situations, where the chain...
+    /// 
+    ///    - had a previous value and can be changed, and the previous value must be combined with right_operand
+    ///      (captured in the closure) to form a new value (e.g. x += 1) by calling present_cb
+    ///    - had a previous value that cannot be changed, because can_set_property is false, so an error is returned
+    ///    - had no previous value but can be set to one, so the value should be based on right_operand 
+    ///      (captured by closure) and calling absent_cb. (absent_cb may choose to generate an error or not.)
+    ///    - had no previous value and none can be set, because can_set_property is false, so an error is returned
+    /// 
+    /// In addition, it is possible that though can_set_property is true, the setting of the property may fail.
+    /// In that case, an error is also returned. 
+    /// 
+    /// When an error is returned, it is as a ShyValue::Scalar(ShyScalar::Error).
+    /// The return_cb callback decides what value to return: the previous value or the new value.
+    /// If there is no previous value, use infer_previous_value as that value to be returned, if needed.
+    pub fn property_chain_update(
+        &mut self, 
+        path: &Vec<String>,
+        infer_prior_value: &ShyValue,
+        present_cb: &dyn Fn(&ShyValue) -> ShyValue, 
+        absent_cb: &dyn Fn() -> ShyValue,
+        return_cb: &dyn Fn(&ShyValue, &ShyValue) -> ShyValue
+        ) -> ShyValue {
+        // TODO: Refactor and make property_chain_update a method on ExecutionContext. 
+        // Follow path to get current value (if any)
+        match self.load_chain(path) {
+            // No current value (but no error)? Use absent_cb and compute a new value
+            None => {
+                // Compute result using absent_cb
+                let new_value = absent_cb();
+                if new_value.is_error() {
+                    return new_value;
+                }
+                
+                // Store result in context using path
+                match self.store_chain(path, new_value.clone()) {
+                    Err(error_value) => error_value,
+                    _ => return_cb(infer_prior_value, &new_value)
+                }
+            },
+
+            // Error retrieving current value? Forward the error.
+            Some(ShyValue::Scalar(ShyScalar::Error(message))) => ShyValue::error(message),
+
+            // Has a current value that is not an error? Use present_cb and compute new value.
+            Some(current_value) => {
+                // Compute result using present_cb
+                let new_value = present_cb(&current_value);
+                if new_value.is_error() {
+                    return new_value;
+                }
+                
+                // Store result in context using path
+                match self.store_chain(path, new_value.clone()) {
+                    Err(error_value) => error_value,
+                    _ => return_cb(&current_value, &new_value)
+                }
+            }
+        }
+    }
+
     /// Call a function that is stored in the context.
     pub fn call(&self, function_name: String, args: ShyValue) -> ShyValue {
         match self.functions.get(&function_name) {
