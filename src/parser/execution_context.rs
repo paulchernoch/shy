@@ -1,6 +1,7 @@
 
 use std::collections::HashMap;
 use std::f64;
+use std::fmt;
 
 use super::shy_scalar::ShyScalar;
 use super::shy_token::ShyValue;
@@ -212,6 +213,16 @@ impl<'a> ExecutionContext<'a> {
         }
     }
 
+    /// Retrieve the value indicated by the given property chain, given as a string with properties separated by periods.
+    pub fn load_str_chain(&self, str_chain: &str) -> Option<ShyValue> {
+        self.load_chain(&Self::str_to_property_chain(str_chain))
+    }
+
+    /// Convert a string slice into a property chain vector.
+    pub fn str_to_property_chain(chain_as_string : &str) -> Vec<String> {
+        chain_as_string.split(".").map(|s| s.to_string()).collect()
+    }
+
     /// Perform the common tasks associated with updating a variable associated with a property chain.
     /// Address these situations, where the chain...
     /// 
@@ -293,5 +304,11 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
             context.variables.insert(key.clone(), wrapped_value);
         }
         context
+    }
+}
+
+impl<'a> fmt::Debug for ExecutionContext<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Exec Context: {:?}", self.variables)
     }
 }
