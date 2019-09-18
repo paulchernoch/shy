@@ -907,6 +907,19 @@ mod tests {
             .is_equal_to(&expected);
     }
 
+    /// Verify that the "if" function works.
+    #[test]
+    fn exec_if() {
+        let mut ctx = ExecutionContext::default();
+
+        let expected: ShyValue = 42.into();
+        let expr = "smart = true; answer = if(smart, 42, 0)";
+        execute_test_case(expr, &mut ctx, &expected, true); 
+        asserting("if function")
+            .that(&ctx.load(&"answer".to_string()).unwrap())
+            .is_equal_to(&expected);
+    }
+
 //..................................................................
 
 // Test helper methods

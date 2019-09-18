@@ -159,8 +159,8 @@ impl ShyOperator {
             ShyOperator::Load => 1,
             ShyOperator::Store => 1,
             ShyOperator::Semicolon => 0,
-            // FunctionCall is variable, but the arguments are packed into a single Vec by the comma operators.
-            ShyOperator::FunctionCall => 1,
+            // FunctionCall is variable, but the first argument is the function name while the rest of the arguments are packed into a single Vec by the comma operators.
+            ShyOperator::FunctionCall => 2,
             ShyOperator::OpenParenthesis => 0,
             ShyOperator::CloseParenthesis => 0,
             ShyOperator::Comma => 2,

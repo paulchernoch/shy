@@ -48,22 +48,81 @@ impl<'a> ExecutionContext<'a> {
             })
     }
 
-    fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
+    /// Define a context function that assumes the argument is a float or integer or a vector
+    /// that holds a single float or integer and returns a bool.
+    pub fn shy_double_to_bool_func<G>(g: G) -> ShyFunction<'a>
+        where G: Fn(f64) -> bool + 'a {
+            Ctx::shy_func(move |v| {
+                match v {
+                    ShyValue::Scalar(ShyScalar::Rational(x)) => g(x).into(),
+                    ShyValue::Scalar(ShyScalar::Integer(i)) => g(i as f64).into(),
+                    ShyValue::Vector(ref vect) if vect.len() == 1 => match vect[0] {
+                        ShyScalar::Rational(x) => g(x).into(),
+                        ShyScalar::Integer(i) => g(i as f64).into(),
+                        _ => ShyValue::error("Vector holding non-numeric value passed to function expecting numbers".into())
+                    },
+                    _ => ShyValue::error("Non-numeric value passed to function expecting a number".into())
+                }
+            })
+    }
+
+    /// Define a context function that acts like an if-then-else statement. It must be passed an array of three elements: 
+    ///    - the boolean test
+    ///    - the value to return if the test is true
+    ///    - the value to return if the test is false.
+    pub fn shy_if_func() -> ShyFunction<'a>
+    {
+            Ctx::shy_func(move |v| {
+                match v {
+                    ShyValue::Vector(ref vect) if vect.len() == 3 => match vect[0] {
+                        ShyScalar::Boolean(test) => ShyValue::Scalar(if test { vect[1].clone() } else { vect[2].clone() }),
+                        _ => ShyValue::error("'if' function first argument must be a boolean value".into())
+                    },
+                    _ => ShyValue::error("'if' function requires exactly three arguments".into())
+                }
+            })
+    }    
+
+    pub fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
         let mut map = HashMap::new();
+
+        // Functions that take a double and return a double
         map.insert("abs".to_string(), Ctx::shy_double_func(|x| x.abs()));
         map.insert("acos".to_string(), Ctx::shy_double_func(|x| x.acos()));
+        map.insert("acosh".to_string(), Ctx::shy_double_func(|x| x.acosh()));
         map.insert("asin".to_string(), Ctx::shy_double_func(|x| x.asin()));
+        map.insert("asinh".to_string(), Ctx::shy_double_func(|x| x.asinh()));
         map.insert("atan".to_string(), Ctx::shy_double_func(|x| x.atan()));
+        map.insert("ceil".to_string(), Ctx::shy_double_func(|x| x.ceil()));
         map.insert("cos".to_string(), Ctx::shy_double_func(|x| x.cos()));
+        map.insert("cosh".to_string(), Ctx::shy_double_func(|x| x.cosh()));
         map.insert("exp".to_string(), Ctx::shy_double_func(|x| x.exp()));
+        map.insert("floor".to_string(), Ctx::shy_double_func(|x| x.floor()));
+        map.insert("fract".to_string(), Ctx::shy_double_func(|x| x.fract()));
         map.insert("ln".to_string(), Ctx::shy_double_func(|x| x.ln()));
+        map.insert("log10".to_string(), Ctx::shy_double_func(|x| x.log10()));
+        map.insert("log2".to_string(), Ctx::shy_double_func(|x| x.log2()));
         map.insert("sin".to_string(), Ctx::shy_double_func(|x| x.sin()));
         map.insert("sqrt".to_string(), Ctx::shy_double_func(|x| x.sqrt()));
         map.insert("tan".to_string(), Ctx::shy_double_func(|x| x.tan()));
+        map.insert("tanh".to_string(), Ctx::shy_double_func(|x| x.tanh()));
+        map.insert("trunc".to_string(), Ctx::shy_double_func(|x| x.trunc()));
+
+        // Functions that take a double and return a boolean
+        map.insert("is_finite".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_finite()));
+        map.insert("is_infinite".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_infinite()));
+        map.insert("is_nan".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_nan()));
+        map.insert("is_normal".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_normal()));
+        map.insert("is_sign_negative".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_sign_negative()));
+        map.insert("is_sign_positive".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_sign_positive()));
+
+        // The 'if' function
+        map.insert("if".to_string(), Ctx::shy_if_func());
+
         map
     }
 
-    fn standard_variables() ->  HashMap<String, ShyValue> {
+    pub fn standard_variables() ->  HashMap<String, ShyValue> {
         let mut map = HashMap::new();
         map.insert("PI".to_string(), f64::consts::PI.into());
         map.insert("π".to_string(), f64::consts::PI.into());
@@ -73,6 +132,7 @@ impl<'a> ExecutionContext<'a> {
         map
     }
 
+    /// Construct an ExecutionContext that adds the standard variables (like PI) and functions (like sin and exp) to those already defined by the caller.
     pub fn new(mut vars: HashMap<String, ShyValue>, mut funcs: HashMap<String, ShyFunction<'a>>) -> Self {
         vars.extend(ExecutionContext::standard_variables());
         funcs.extend(ExecutionContext::standard_functions());
@@ -82,7 +142,7 @@ impl<'a> ExecutionContext<'a> {
         }
     }
 
-    /// Create a default context that only defines math functions and constants.
+    /// Create a default context that only defines the standard math functions and constants.
     pub fn default() -> Self {
         ExecutionContext {
             variables: ExecutionContext::standard_variables(),
