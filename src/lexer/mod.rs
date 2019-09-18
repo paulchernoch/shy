@@ -860,6 +860,23 @@ mod tests {
     }
 
     #[test]
+    /// Verify the Lexer can parse compound assignment operators
+    fn compound_assignment() {
+        lexer_test_helper(
+            "||= &&= += -= *= /= %=", 
+            vec![
+                ParserToken::AssignmentOp("||=".into()),
+                ParserToken::AssignmentOp("&&=".into()),
+                ParserToken::AssignmentOp("+=".into()),
+                ParserToken::AssignmentOp("-=".into()),
+                ParserToken::AssignmentOp("*=".into()),
+                ParserToken::AssignmentOp("/=".into()),
+                ParserToken::AssignmentOp("%=".into())
+            ]
+        );
+    }
+
+    #[test]
     /// Verify that an illegal character does not panic, but returns an Error
     fn illegal_character() {
         let expression = "5 + #3".to_string();

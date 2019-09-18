@@ -870,6 +870,43 @@ mod tests {
             .is_equal_to(&expected);
     }
 
+    #[test]
+    fn exec_existing_path_with_plus_assign() {
+        let mut ctx = ExecutionContext::default();
+        let gifts = ShyObject::empty();
+        gifts.as_deref_mut().set("count", 4.into());
+        ctx.store(&"wedding_gifts".into(), ShyValue::Object(gifts));
+
+        let expected: ShyValue = 5.into();
+        execute_test_case("wedding_gifts.count += 1", &mut ctx, &expected, true); 
+        asserting("existing path with plus assign works")
+            .that(&ctx.load_str_chain("wedding_gifts.count").unwrap())
+            .is_equal_to(&expected);
+    }
+
+    /// Verify that an existent path can be used in an or-equals.
+    #[test]
+    fn exec_path_or_equals() {
+        let mut ctx = ExecutionContext::default();
+        let circumstances = ShyObject::empty();
+        circumstances.as_deref_mut().set("graduated_high_school", false.into());
+        circumstances.as_deref_mut().set("graduated_college", true.into());
+        circumstances.as_deref_mut().set("criminal_record", false.into());
+        circumstances.as_deref_mut().set("credit_score", 650.into());
+        ctx.store(&"circumstances".into(), ShyValue::Object(circumstances));
+
+        let expected: ShyValue = true.into();
+        let expr = "
+        circumstances.interview = circumstances.graduated_high_school || circumstances.graduated_college;
+        circumstances.interview ||= !circumstances.criminal_record;
+        circumstances.interview ||= circumstances.credit_score >= 600
+        ";
+        execute_test_case(expr, &mut ctx, &expected, true); 
+        asserting("load and store of path with or-equals operator")
+            .that(&ctx.load_str_chain("circumstances.interview").unwrap())
+            .is_equal_to(&expected);
+    }
+
 //..................................................................
 
 // Test helper methods
