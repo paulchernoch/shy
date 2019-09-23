@@ -13,3 +13,5 @@ lazy_static = "1.3.0"
 regex = "1"
 # objekt-clonable = { git = "https://github.com/kardeiz/objekt-clonable" }
 # objekt = { git = "https://github.com/dtolnay/objekt" }
+rand = "0.7.2"
+

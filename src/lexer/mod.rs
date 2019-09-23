@@ -3,8 +3,7 @@
 use std::mem;
 
 pub mod lexer_event;
-use lexer_event::LexerEvent;
-use lexer_event::LexerEventIterator;
+use lexer_event::{LexerEvent, LexerEventIterator};
 
 pub mod lexer_state;
 use lexer_state::LexerState;

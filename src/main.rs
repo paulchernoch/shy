@@ -14,7 +14,9 @@ extern crate lazy_static;
 #[allow(unused_macros)]
 #[cfg(test)]
 extern crate spectral;
+extern crate rand;
 
+mod cache;
 mod parser;
 mod lexer;
 use parser::execution_context::ExecutionContext;

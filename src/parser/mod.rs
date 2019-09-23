@@ -316,7 +316,7 @@ impl<'a> ShuntingYard<'a> {
 //..................................................................
 
 /// Compiled Expression that can be executed.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expression<'a> {
     marker: PhantomData<&'a i64>,
 
