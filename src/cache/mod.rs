@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::collections::HashMap;
-use std::mem;
 use std::time::{SystemTime, Duration};
 use std::cmp::{max, min};
 
@@ -15,7 +14,17 @@ use cache_entry::CacheEntry;
 pub mod cache_info; 
 use cache_info::CacheInfo;
 
-/// Interface for immutable memory caches.
+/// The size 16 was derived experimentally by Redis as being optimal. 
+const EVICTION_CANDIDATES_SIZE : usize = 16;
+
+/// The size 13 was derived theoretically by me to compensate for the reduced accuracy inherent in the design differences between
+/// this implementation and Redis'. It ensures that each eviction (on average) will improve the quality (by increasing the average age) 
+/// of the items in the eviction candidates section of the entries Vec. A value of 12 also improves the candidate on average, but negligibly. 
+/// A value of 11 or less makes the eviction candidates get steadily poorer.
+const DEFAULT_EVICTION_PROBE_COUNT : usize = 13;
+const MINIMUM_EVICTION_PROBE_COUNT : usize = 5;
+
+/// Interface for memory caches that hold immutable objects.
 pub trait Cache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
@@ -31,7 +40,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 
     /// Get the value from the cache corresponding to the given key (along with its creation time), 
     /// returning None if it is not yet cached. 
-    /// This increments the misses count on failure and the hits count on success,
+    /// This increments the entry's misses count on failure and the hits count on success,
     /// and the access_count in both cases.
     fn get(&mut self, key : &K) -> Option<(V,SystemTime)>;
 
@@ -116,15 +125,6 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     fn clear(&mut self) -> ();
 }
 
-/// The size 16 was derived experimentally by Redis as being optimal. 
-const EVICTION_CANDIDATES_SIZE : usize = 16;
-
-/// The size 13 was derived theoretically by me to compensate for the reduced accuracy inherent in the design differences between
-/// this implementation and Redis'. It ensures that each eviction (on average) will improve the quality (by increasing the average age) 
-/// of the items in the eviction candidates section of the entries Vec. A value of 12 also improves the candidate on average, but negligibly. 
-/// A value of 11 or less makes the eviction candidates get steadily poorer.
-const DEFAULT_EVICTION_PROBE_COUNT : usize = 13;
-const MINIMUM_EVICTION_PROBE_COUNT : usize = 5;
 
 /// A Cache Trait implementation inspired by an approximate LRU algorithm invented at Redis.
 /// For their algorithm, see https://redis.io/topics/lru-cache
@@ -194,7 +194,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// The beginning of the Vec holds the eviction candidates, items likely to soon be evicted. 
     entries : Vec<Option<CacheEntry<K,V>>>,
 
-    /// For each cache key, associate a position in the entries buffer. 
+    /// For each cache key, associate a position in the entries buffer as part of a bi-directional index. 
     position_for_key : HashMap<Rc<K>, usize>,
 
     /// Useful Statistics about cache usage
@@ -213,6 +213,8 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 impl<K,V> ApproximateLRUCache<K,V> 
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone {
+    /// Construct a new ApproximateLRUCache with a given capacity.
+    /// If the requested capacity is too small, it will be increased.
     pub fn new(capacity : usize) -> Self {
         let acceptable_capacity = max(capacity, 4 * EVICTION_CANDIDATES_SIZE);
         ApproximateLRUCache {
@@ -263,47 +265,43 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// It is approximate; the odds are favorable that the evicted item is among the ten percent of oldest items, but
     /// it is not guaranteed. 
     fn evict_if_full(&mut self) -> bool {
-        if self.is_full() {
-            //TODO: Implement the eviction
-            let last_position = self.size() - 1;
-            let mut oldest_candidate_position = 0;
-            for _ in 0..self.eviction_probes {
-                // probe_position is guaranteed to not overlap with the candidates region of the entries Vec. 
-                let probe_position = self.distribution.sample(&mut self.rng);
-                // This loop acts like a bubble sort of the candidates section. 
-                for candidate_position in 0..EVICTION_CANDIDATES_SIZE {
-                    if self.is_entry_older(probe_position, candidate_position) {
-                        self.swap_entries(probe_position, candidate_position);
-                    }
-                    // Track the oldest candidate seen so far, factoring in probes that make the cut and have been swapped in.
-                    if self.is_entry_older(oldest_candidate_position, candidate_position) {
-                        oldest_candidate_position = candidate_position;
-                    }
+        if !self.is_full() { return false; }
+
+        let last_position = self.size() - 1;
+        let mut oldest_candidate_position = 0;
+        for _ in 0..self.eviction_probes {
+            // probe_position is guaranteed to not overlap with the candidates region of the entries Vec. 
+            let probe_position = self.distribution.sample(&mut self.rng);
+            // This loop acts like a bubble sort of the candidates section. 
+            for candidate_position in 0..EVICTION_CANDIDATES_SIZE {
+                if self.is_entry_older(probe_position, candidate_position) {
+                    self.swap_entries(probe_position, candidate_position);
                 }
-                // After the preceding loop, the entry in the probe's original position may or may not have been 
-                // replaced by a former candidate. Move it into last position if it is older than the one currently in last position. 
-                // This has the progressive effect of finding the oldest entry of the union of the original candidate set 
-                // and the probed items that did not make it into the candidate set. This is the item
-                // that will replace the evicted item in the candidate set.  
-                if self.is_entry_older(probe_position, last_position) {
-                    self.swap_entries(probe_position, last_position);
+                // Track the oldest candidate seen so far, factoring in probes that make the cut and have been swapped in.
+                if self.is_entry_older(oldest_candidate_position, candidate_position) {
+                    oldest_candidate_position = candidate_position;
                 }
             }
-            // At this stage, the candidates set has been refreshed with zero or more randomly probed items. 
-            // The entry in last position in the whole entries Vec is now holding the oldest of the rejected eviction candidates.
-            // oldest_candidate_position tells us which eviction candidate is the oldest, hence should be evicted.
-            // Now we swap the entry to be evicted with the entry in last position, before blanking it out with a None. 
-            self.swap_entries(oldest_candidate_position, last_position);
-            let evicted_key;
-            if let Some(CacheEntry { key : k, .. }) = &self.entries[last_position] { evicted_key = k.clone(); }
-            else {
-                panic!("Last Cache entry is empty");
+            // After the preceding loop, the entry in the probe's original position may or may not have been 
+            // replaced by a former candidate. Move it into last position if it is older than the one currently in last position. 
+            // This has the progressive effect of finding the oldest entry of the union of the original candidate set 
+            // and the probed items that did not make it into the candidate set. This is the item
+            // that will replace the evicted item in the candidate set.  
+            if self.is_entry_older(probe_position, last_position) {
+                self.swap_entries(probe_position, last_position);
             }
-            self.remove(&evicted_key)
         }
+        // At this stage, the candidates set has been refreshed with zero or more randomly probed items. 
+        // The entry in last position in the whole entries Vec is now holding the oldest of the rejected eviction candidates.
+        // oldest_candidate_position tells us which eviction candidate is the oldest, hence should be evicted.
+        // Now we swap the entry to be evicted with the entry in last position, before blanking it out with a None. 
+        self.swap_entries(oldest_candidate_position, last_position);
+        let evicted_key;
+        if let Some(CacheEntry { key : k, .. }) = &self.entries[last_position] { evicted_key = k.clone(); }
         else {
-            false
+            panic!("Last Cache entry is empty");
         }
+        self.remove(&evicted_key)
     }
 
     pub fn set_probe_count(&mut self, new_count : usize) {
@@ -412,6 +410,6 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 
     /// Empty the Cache and reset the statistics (hits and misses). 
     fn clear(&mut self) -> () {
-
+        //TODO: Implement clear() method
     }
 }

@@ -4,7 +4,8 @@ use std::fmt::Debug;
 use std::time::{SystemTime, Duration};
 
 #[derive(Clone, PartialEq, Debug)]
-/// An entry in the cache, that records when the object was added to the cache.
+/// An entry in the cache, that records the object's key, its value, when the object was added to the cache, 
+/// and how many times it has been requested.
 pub struct CacheEntry<K,V>
     where K: Eq + Hash + PartialEq + Debug + Clone,
           V: Clone {
