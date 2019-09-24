@@ -418,7 +418,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 }
 
 #[cfg(test)]
-/// Tests of the Lexer.
+/// Tests of the Cache.
 mod tests {
     #[allow(unused_imports)]
     use super::*;
