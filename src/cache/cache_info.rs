@@ -35,11 +35,18 @@ impl CacheInfo {
     }
 
     pub fn hit_ratio(&self) -> f64 {
+        // The denominator is hits + misses, not access_count, because some accesses are not a hit or a miss,
+        // but are part of the update logic, because some code paths for a single get make multiple API calls,
+        // causing access_count to grow faster than the sum.
         if self.access_count == 0 { 0.0 }
-        else { self.hits as f64 / self.access_count as f64 }
+        else { self.hits as f64 / (self.hits + self.misses) as f64 }
     }
+
     pub fn miss_ratio(&self) -> f64 {
+        // The denominator is hits + misses, not access_count, because some accesses are not a hit or a miss,
+        // but are part of the update logic, because some code paths for a single get make multiple API calls,
+        // causing access_count to grow faster than the sum.
         if self.access_count == 0 { 0.0 }
-        else { self.misses as f64 / self.access_count as f64 }
+        else { self.misses as f64 / (self.hits + self.misses) as f64 }
     }
 }

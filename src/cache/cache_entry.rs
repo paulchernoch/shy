@@ -9,7 +9,7 @@ pub struct CacheEntry<K,V>
     where K: Eq + Hash + PartialEq + Debug + Clone,
           V: Clone {
     /// Key for the item
-    key : Rc<K>,
+    pub key : Rc<K>,
     /// Item being stored in the cache
     value : Rc<V>,
     /// Number of accesses of any key from the creation of the cache up until the last time this key was accessed
@@ -24,14 +24,14 @@ impl<K,V> CacheEntry<K,V>
     where K: Eq + Hash + PartialEq + Debug + Clone,
           V: Clone
  {
-    fn is_older_than(&self, duration : Duration) -> bool {
+    pub fn is_older_than(&self, duration : Duration) -> bool {
         match SystemTime::now().duration_since(self.created) {
             Ok(elapsed) => elapsed > duration,
             Err(_) => false
         }
     }
 
-    fn new(key : Rc<K>, value : Rc<V>, access_sequence : u64) -> Self {
+    pub fn new(key : Rc<K>, value : Rc<V>, access_sequence : u64) -> Self {
         CacheEntry {
             key,
             value,
@@ -39,5 +39,26 @@ impl<K,V> CacheEntry<K,V>
             access_count: 1,
             created: SystemTime::now()
         }
+    }
+
+    pub fn touch(&mut self, new_access_sequence : u64) {
+        self.access_count += 1;
+        self.access_sequence = new_access_sequence;
+    }
+
+    pub fn replace(&mut self, new_value : &Rc<V>, new_access_sequence : u64) {
+        self.access_count += 1;
+        self.access_sequence = new_access_sequence;
+        self.value = new_value.clone();
+        self.created = SystemTime::now();
+    }
+
+    pub fn value_created(&self) -> (V, SystemTime) {
+        ((*self.value).clone(), self.created)
+    }
+
+    /// True if self was last accessed before other was, false otherwise.
+    pub fn was_last_used_before(&self, other : &Self) -> bool {
+        self.access_sequence < other.access_sequence
     }
 }

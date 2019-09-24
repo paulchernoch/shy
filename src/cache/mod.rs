@@ -119,6 +119,13 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 /// The size 16 was derived experimentally by Redis as being optimal. 
 const EVICTION_CANDIDATES_SIZE : usize = 16;
 
+/// The size 13 was derived theoretically by me to compensate for the reduced accuracy inherent in the design differences between
+/// this implementation and Redis'. It ensures that each eviction (on average) will improve the quality (by increasing the average age) 
+/// of the items in the eviction candidates section of the entries Vec. A value of 12 also improves the candidate on average, but negligibly. 
+/// A value of 11 or less makes the eviction candidates get steadily poorer.
+const DEFAULT_EVICTION_PROBE_COUNT : usize = 13;
+const MINIMUM_EVICTION_PROBE_COUNT : usize = 5;
+
 /// A Cache Trait implementation inspired by an approximate LRU algorithm invented at Redis.
 /// For their algorithm, see https://redis.io/topics/lru-cache
 /// 
@@ -171,6 +178,15 @@ const EVICTION_CANDIDATES_SIZE : usize = 16;
 /// 
 /// Using a ring buffer is performant, but the logic has tricky edge cases. 
 /// If the performance is good enough, simplicity is better. 
+/// 
+/// Layout of entries: 
+///    - entries is filled to capacity initially with None, so do not rely upon entries.size() for the count of items
+///      in the cache. 
+///    - The entries from position zero to EVICTION_CANDIDATES_SIZE - 1 hold the eviction candidates.
+///    - The entries from position EVICTION_CANDIDATES_SIZE to capacity - 1 hold the remaining cache entries. 
+///    - Until the cache fills, new entries are added to position self.info.size. 
+///    - Whenever an item is removed from the middle of the entries Vec, the hole is usually filled by swapping the None with
+///      the entry at the end of entries. 
 pub struct ApproximateLRUCache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone {
@@ -188,7 +204,10 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     rng : ThreadRng,
 
     /// Distribution to sample when generating random numbers
-    distribution : Uniform<usize>
+    distribution : Uniform<usize>,
+
+    /// Number of random probes to use when searching for eviction candidates
+    eviction_probes : usize
 }
 
 impl<K,V> ApproximateLRUCache<K,V> 
@@ -201,8 +220,94 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
             position_for_key : HashMap::with_capacity(acceptable_capacity / 4),
             info : CacheInfo::new(acceptable_capacity),
             rng : thread_rng(),
-            distribution : Uniform::new(EVICTION_CANDIDATES_SIZE, acceptable_capacity) // exclusive of the high value
+            distribution : Uniform::new(EVICTION_CANDIDATES_SIZE, acceptable_capacity), // exclusive of the high value
+            eviction_probes : DEFAULT_EVICTION_PROBE_COUNT
         }
+    }
+
+    /// Swap two entries, returning true on a successful swap, false otherwise.
+    /// If the positions are out of range, or equal, or either position points to None for an entry,
+    /// swapping will fail. 
+    fn swap_entries(&mut self, position1 : usize, position2 : usize) -> bool {
+        if position1 == position2 || position1 >= self.size() || position2 >= self.size() { false }
+        else {
+            let key1;
+            let key2;
+
+            if let Some(CacheEntry { key : k1, .. }) = &self.entries[position1] { key1 = k1.clone(); }
+            else { return false; }
+
+            if let Some(CacheEntry { key : k2, .. }) = &self.entries[position2] { key2 = k2.clone(); }
+            else { return false; }
+
+            // Two things to accomplish: swap positions in the entries Vec, and swap the positions in position_for_key.
+            self.entries.swap(position1, position2);
+            self.position_for_key.insert(key1, position2);
+            self.position_for_key.insert(key2, position1);
+            true
+        }
+    }
+
+    /// Compare the entry at the probe_position to the entry at the candidate_position and return true if the probe
+    /// was last accessed before the last time the candidate was accessed.
+    fn is_entry_older(&self, probe_position : usize, candidate_position : usize) -> bool {
+        if probe_position == candidate_position { return false; }
+        if let (Some(probe_entry), Some(candidate_entry)) = (self.entries[probe_position].as_ref(), self.entries[candidate_position].as_ref()) {
+            probe_entry.was_last_used_before(candidate_entry)
+        }
+        else { false }
+    }
+
+    /// If the cache is full, evict an item and return true, otherwise do nothing and return false.
+    /// The eviction policy involves random probing to search for the item that was least recently used. 
+    /// It is approximate; the odds are favorable that the evicted item is among the ten percent of oldest items, but
+    /// it is not guaranteed. 
+    fn evict_if_full(&mut self) -> bool {
+        if self.is_full() {
+            //TODO: Implement the eviction
+            let last_position = self.size() - 1;
+            let mut oldest_candidate_position = 0;
+            for _ in 0..self.eviction_probes {
+                // probe_position is guaranteed to not overlap with the candidates region of the entries Vec. 
+                let probe_position = self.distribution.sample(&mut self.rng);
+                // This loop acts like a bubble sort of the candidates section. 
+                for candidate_position in 0..EVICTION_CANDIDATES_SIZE {
+                    if self.is_entry_older(probe_position, candidate_position) {
+                        self.swap_entries(probe_position, candidate_position);
+                    }
+                    // Track the oldest candidate seen so far, factoring in probes that make the cut and have been swapped in.
+                    if self.is_entry_older(oldest_candidate_position, candidate_position) {
+                        oldest_candidate_position = candidate_position;
+                    }
+                }
+                // After the preceding loop, the entry in the probe's original position may or may not have been 
+                // replaced by a former candidate. Move it into last position if it is older than the one currently in last position. 
+                // This has the progressive effect of finding the oldest entry of the union of the original candidate set 
+                // and the probed items that did not make it into the candidate set. This is the item
+                // that will replace the evicted item in the candidate set.  
+                if self.is_entry_older(probe_position, last_position) {
+                    self.swap_entries(probe_position, last_position);
+                }
+            }
+            // At this stage, the candidates set has been refreshed with zero or more randomly probed items. 
+            // The entry in last position in the whole entries Vec is now holding the oldest of the rejected eviction candidates.
+            // oldest_candidate_position tells us which eviction candidate is the oldest, hence should be evicted.
+            // Now we swap the entry to be evicted with the entry in last position, before blanking it out with a None. 
+            self.swap_entries(oldest_candidate_position, last_position);
+            let evicted_key;
+            if let Some(CacheEntry { key : k, .. }) = &self.entries[last_position] { evicted_key = k.clone(); }
+            else {
+                panic!("Last Cache entry is empty");
+            }
+            self.remove(&evicted_key)
+        }
+        else {
+            false
+        }
+    }
+
+    pub fn set_probe_count(&mut self, new_count : usize) {
+        self.eviction_probes = min(self.size() / 3, max(MINIMUM_EVICTION_PROBE_COUNT, new_count));
     }
 }
 
@@ -210,26 +315,99 @@ impl<K,V> Cache<K,V> for ApproximateLRUCache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
 {
+    /// Add a value to the cache if it is not already present, or replace the value currently there if it is.
+    /// In either case, the value will be Cloned before being stored.
+    /// Returns true if the value was added, false if replaced.
+    /// Only if update_stats is true will the misses count be incremented.
+    /// 
+    /// If the cache is full (with size equaling capacity) and the item is not already present (hence is not
+    /// replaceable) then before it can be added, an eviction must occur. 
     fn add_or_replace(&mut self, key : &K, value : &V, update_stats : bool) -> bool {
-        false
+        if update_stats {
+            // Treat this as a cache miss.
+            self.info.access(false);
+        }
+        else {
+            // Even if we do not register a hit or miss, increase the access_count so that
+            // we assign unique values for each entry.
+            self.info.access_count += 1;
+        }
+        let rc_key = Rc::new(key.clone());
+        match self.position_for_key.get(&rc_key) {
+            Some(position) => {
+                // Replace existing value with a new value. 
+                match &mut self.entries[*position] {
+                    Some(entry) => {
+                        entry.replace(&Rc::new(value.clone()), self.info.access_count);
+                        false
+                    },
+                    None => {
+                        panic!("Cache entry for key {:?} is empty", *rc_key);
+                    }
+                }
+            },
+            None => {
+                // Evict an entry (if necessary), then add a new entry to the end.
+                self.evict_if_full();
+                self.entries[self.info.size] = Some(CacheEntry::new(rc_key.clone(), Rc::new(value.clone()), self.info.access_count));
+                self.position_for_key.insert(rc_key, self.info.size);
+                self.info.size += 1;
+                true
+            }
+        }
     }
-
 
     fn get(&mut self, key : &K) -> Option<(V,SystemTime)> {
-        None
+        match self.position_for_key.get(&Rc::new(key.clone())) {
+            Some(index) => {
+                match &mut self.entries[*index] {
+                    Some(entry) => {
+                        self.info.access(true);
+                        entry.touch(self.info.access_count);
+                        Some(entry.value_created())
+                    },
+                    None => {
+                        panic!("Cache entry for key {:?} is empty", *key);
+                    }
+                }
+            },
+            None => {
+                self.info.access(false);
+                None
+            }
+        }
     }
 
-    fn get_info(&self) -> CacheInfo {
-        self.info
-    }
+    fn get_info(&self) -> CacheInfo { self.info }
 
     /// Get a mutable reference to a structure holding several statistics about the cache. 
-    fn get_info_mut(&mut self) -> &mut CacheInfo {
-        &mut self.info
-    }
+    fn get_info_mut(&mut self) -> &mut CacheInfo {  &mut self.info }
 
     fn remove(&mut self, key : &K) -> bool {
-        false
+        let rc_key = &Rc::new(key.clone());
+        let removed = match self.position_for_key.get(rc_key) {
+            Some(index) => {
+                let size_before_remove = self.size();
+                if *index == size_before_remove - 1 {
+                    // Entry is at end of list. No need to swap to close hole.
+                    self.entries[*index] = None;
+                    self.info.size -= 1;
+                    true
+                }
+                else {
+                    // Entry is not at end of list. Swap last item with the empty cell we put at the removal point.
+                    self.entries[*index] = None;
+                    self.entries.swap(*index, size_before_remove - 1);
+                    self.info.size -= 1;
+                    true
+                }
+            },
+            None => false
+        };
+        if removed {
+            self.position_for_key.remove(rc_key);
+        }
+        removed
     }
 
     /// Empty the Cache and reset the statistics (hits and misses). 
