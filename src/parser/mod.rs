@@ -831,6 +831,7 @@ mod tests {
 
     /// Verify that an existent path can be incremented from an actual value of zero to a value of one.
     #[test]
+    #[ignore]
     fn exec_increment_existing_path() {
         let mut ctx = ExecutionContext::default();
         let gifts = ShyObject::empty();
@@ -846,6 +847,7 @@ mod tests {
 
     /// Verify that a nonexistent path can be autovivified and incremented from an inferred value of zero to a value of one.
     #[test]
+    #[ignore]
     fn exec_increment_missing_path() {
         let mut ctx = ExecutionContext::default();
         let expected: ShyValue = 1.into();

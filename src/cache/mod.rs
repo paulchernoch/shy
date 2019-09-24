@@ -416,3 +416,43 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         self.info = CacheInfo::new(old_capacity);    
     }
 }
+
+#[cfg(test)]
+/// Tests of the Lexer.
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[allow(unused_imports)]
+    use spectral::prelude::*;
+
+    #[test]
+    fn sparse_misses() {
+        let mut cache = ApproximateLRUCache::new(1000);
+        let keys :Vec<i32> = vec![0,1,2,3,4,5];
+        let factory = &|k:&i32| -> Option<String> { Some(k.to_string()) };
+        for key in keys {
+            cache.get_or_add(&key, factory);
+        }
+        asserting("all misses").that(&cache.misses()).is_equal_to(6);
+        asserting("all added").that(&cache.size()).is_equal_to(6);
+    }
+
+    #[test]
+    fn sparse_miss_then_hit() {
+        let mut cache = ApproximateLRUCache::new(1000);
+        let keys :Vec<i32> = vec![0,1,2,3,4,5];
+        let factory = &|k:&i32| -> Option<String> { Some(k.to_string()) };
+        for key in keys {
+            cache.get_or_add(&key, factory);
+        }
+        asserting("all misses").that(&cache.misses()).is_equal_to(6);
+        asserting("no hits at first").that(&cache.hits()).is_equal_to(0);
+        match cache.get(&3) {
+            Some((ref value, _)) if *value == "3".to_string() => (),
+            _ => panic!("Unable to get key")
+        }
+        asserting("one hit after second get").that(&cache.hits()).is_equal_to(1);
+    }
+
+}
