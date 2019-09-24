@@ -410,6 +410,9 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 
     /// Empty the Cache and reset the statistics (hits and misses). 
     fn clear(&mut self) -> () {
-        //TODO: Implement clear() method
+        let old_capacity = self.capacity();
+        self.entries = vec![Option::None; old_capacity];
+        self.position_for_key = HashMap::with_capacity(old_capacity / 4);
+        self.info = CacheInfo::new(old_capacity);    
     }
 }
