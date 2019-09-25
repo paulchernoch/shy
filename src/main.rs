@@ -48,7 +48,7 @@ fn repl() {
         let shy: ShuntingYard = command.into();
         match shy.compile() {
             Ok(mut expr) => {
-                if trace_on { expr.trace(&mut ctx); }
+                if trace_on { let _ = expr.trace(&mut ctx); }
                 match expr.exec(&mut ctx) {
                      
                     Ok(ShyValue::Scalar(actual)) => {

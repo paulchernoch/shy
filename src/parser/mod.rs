@@ -31,6 +31,7 @@ use shy_operator::ShyOperator;
 pub mod shy_association;
 pub mod shy_object;
 
+
 //..................................................................
 
 /// Implements the Shunting Yard algorithm for converting a series of tokens in infix order 
@@ -539,11 +540,16 @@ impl<'a> Expression<'a> {
 mod tests {
     #[allow(unused_imports)]
     use super::*;
+    use std::time::Instant;
 
     #[allow(unused_imports)]
     use spectral::prelude::*;
 
     use super::shy_object::ShyObject;
+
+    use crate::cache::{ApproximateLRUCache, Cache};
+
+
 
     /// Verify that the tokens for "2 + 2" are correctly rearranged into infix order.
     #[test]
@@ -909,8 +915,8 @@ mod tests {
             .is_equal_to(&expected);
     }
 
-    /// Verify that the "if" function works.
     #[test]
+    /// Verify that the "if" function works.
     fn exec_if() {
         let mut ctx = ExecutionContext::default();
 
@@ -920,6 +926,43 @@ mod tests {
         asserting("if function")
             .that(&ctx.load(&"answer".to_string()).unwrap())
             .is_equal_to(&expected);
+    }
+
+    #[test]
+    /// Verify that if expressions are cached, they still execute properly and it takes less time to execute them.
+    /// On a Windows Tablet, for a typical formula: 
+    /// 
+    ///    - 4.4 evals per ms without cache 
+    ///    - 42.6 evals per ms with a cache
+    /// 
+    /// This is running unoptimized.
+    fn expression_cache_performance() {
+        let mut cache : ApproximateLRUCache<String, Expression> = ApproximateLRUCache::new(10000);
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"x".to_string(), 5.into());
+        ctx.store(&"y".to_string(), 10.into());
+        let mut expressions : Vec<ExpressionCacheTest> = Vec::new();
+        for i in 0..100 {
+            for j in 0..100 {
+                let expression_text = format!("y * (4 * {} - 2 * {})^2 / x", i, j);
+                let test = ExpressionCacheTest::new(&expression_text, &mut ctx, &mut cache);
+                expressions.push(test);
+            }
+        }
+
+        let timer_with_cache = Instant::now();
+        for expr in expressions.iter_mut() {
+            expr.execute_with_cache(&mut ctx, &mut cache);
+        }
+        let elapsed_millis_with_cache  : i64 = timer_with_cache.elapsed().as_millis() as i64;
+
+        let timer_without_cache = Instant::now();
+        for expr in expressions.iter_mut() {
+            expr.execute_without_cache(&mut ctx);
+        }
+        let elapsed_millis_without_cache : i64 = timer_without_cache.elapsed().as_millis() as i64;
+        let message = format!("With cache: {}ms    Without cache: {}ms", elapsed_millis_with_cache, elapsed_millis_without_cache);
+        asserting(&message).that(&elapsed_millis_without_cache).is_greater_than(&(5*elapsed_millis_with_cache));
     }
 
 //..................................................................
@@ -962,4 +1005,47 @@ mod tests {
         }
     }
 
+    struct ExpressionCacheTest<'a> {
+        text_expression : String,
+        compiled_expression : Expression<'a>,
+        expected_result : ShyValue
+    }
+
+    impl<'a> ExpressionCacheTest<'a> {
+        pub fn new<C>(expression : &str, ctx : &mut ExecutionContext, cache : &mut C) -> Self 
+        where C : Cache<String, Expression<'a>>
+        {
+            let shy : ShuntingYard = expression.into();
+            let compiled = shy.compile().unwrap();
+            let result = compiled.exec(ctx).unwrap();
+            cache.get_or_add(&expression.to_string(), & |_| Some(compiled.clone()) );
+            ExpressionCacheTest {
+                text_expression : expression.to_string(),
+                compiled_expression : compiled,
+                expected_result : result
+            }
+        }
+
+        pub fn execute_without_cache(&mut self, ctx : &mut ExecutionContext<'a>) {
+            let shy : ShuntingYard = self.text_expression.clone().into();
+            let actual_result = shy.compile().unwrap().exec(ctx).unwrap();
+            if actual_result != self.expected_result {
+                panic!("Actual result {:?} does not match expected {:?}", actual_result, self.expected_result);
+            }
+        }
+
+        pub fn execute_with_cache<C>(&mut self, ctx : &mut ExecutionContext<'a>, cache : &mut C) 
+        where C : Cache<String, Expression<'a>> {
+            match cache.get(&self.text_expression) {
+                Some((compiled_expression_from_cache, _)) => {
+                    let actual_result = compiled_expression_from_cache.exec(ctx).unwrap();
+                    if actual_result != self.expected_result {
+                        panic!("Actual result {:?} does not match expected {:?}", actual_result, self.expected_result);
+                    }
+                },
+                None => panic!("{} not in cache", self.text_expression)
+            }
+
+        }
+    }
 }
