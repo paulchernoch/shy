@@ -1,5 +1,6 @@
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+/// Statistics that describe the state of a Cache.
 pub struct CacheInfo {
     /// Number of items currently in the cache.
     pub size : usize,
@@ -18,8 +19,8 @@ pub struct CacheInfo {
     pub access_count : u64
 }
 
-/// Statistics that describe a cache. 
 impl CacheInfo {
+    /// Construct a new CacheInfo that describes the initial state of a cache with a given maximum capacity.
     pub fn new(capacity : usize) -> Self {
         CacheInfo {
             size : 0,

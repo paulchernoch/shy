@@ -14,17 +14,24 @@ use cache_entry::CacheEntry;
 pub mod cache_info; 
 use cache_info::CacheInfo;
 
-/// The size 16 was derived experimentally by Redis as being optimal. 
+/// Number of candidates to retain for comparison in the algorithm when deciding which item to evict from the cache.
+/// The size 16 was derived experimentally by Redis as being optimal.
+/// A larger value will increase accuracy but reduce speed.
 const EVICTION_CANDIDATES_SIZE : usize = 16;
 
+/// Number of randomly selected items in the cache to compare during each request (once the cache is full)
+/// while looking for the oldest possible item to evict. 
 /// The size 13 was derived theoretically by me to compensate for the reduced accuracy inherent in the design differences between
 /// this implementation and Redis'. It ensures that each eviction (on average) will improve the quality (by increasing the average age) 
-/// of the items in the eviction candidates section of the entries Vec. A value of 12 also improves the candidate on average, but negligibly. 
+/// of the items in the eviction candidates section of the entries Vec. A value of 12 also improves the candidates set on average, but negligibly. 
 /// A value of 11 or less makes the eviction candidates get steadily poorer.
 const DEFAULT_EVICTION_PROBE_COUNT : usize = 13;
+
+/// Should the caller override the eviction probe count, it will not be permitted to drop below this value. 
+/// 5 was the lowest value considered by Redis and yielded mediocre LRU conformance.
 const MINIMUM_EVICTION_PROBE_COUNT : usize = 5;
 
-/// Interface for memory caches that hold immutable objects.
+/// Interface for memory caches that hold immutable objects which are cloned on access.
 pub trait Cache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
@@ -32,20 +39,20 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 
     // Note: The get method is responsible for incrementing hits and misses.
 
-    /// Add a value to the cache if it is not already present, or replace the value currently there if it is.
-    /// In either case, the value will be Cloned before being stored.
-    /// Returns true if the value was added, false if replaced.
-    /// Only if update_stats is true will the misses count be incremented.
+    /// Add a `value` to the cache if its `key` is not already present, or replace the `value` currently there if it is.
+    /// The `value` will be Cloned before being stored.
+    /// Returns true if the `value` was added, false if replaced.
+    /// Only if `update_stats` is true will the `misses` count be incremented.
     fn add_or_replace(&mut self, key : &K, value : &V, update_stats : bool) -> bool;
 
-    /// Get the value from the cache corresponding to the given key (along with its creation time), 
-    /// returning None if it is not yet cached. 
-    /// This increments the entry's misses count on failure and the hits count on success,
-    /// and the access_count in both cases.
+    /// Get the value from the cache corresponding to the given `key` (along with its creation time), 
+    /// returning `None` if it is not yet cached. 
+    /// This increments the entry's `misses` count on failure and the `hits` count on success,
+    /// and the `access_count` in both cases.
     fn get(&mut self, key : &K) -> Option<(V,SystemTime)>;
 
-    /// Get the value from the cache corresponding to the given key, creating and storing it if it is not yet cached.
-    /// If the factory method fails, None is returned. 
+    /// Get the value from the cache corresponding to the given `key`, creating and storing it if it is not yet cached.
+    /// If the `factory` method fails to create the item, `None` is returned. 
     fn get_or_add(&mut self, key : &K, factory : &dyn Fn(&K)->Option<V>) -> Option<V> {
         match self.get(key) {
             Some((value, _)) => Some(value),
@@ -62,9 +69,9 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         }
     }
 
-    /// Get the value from the cache corresponding to the given key, creating and storing it if it is not yet cached
-    /// OR if its created date is older than the given expiry_duration.
-    /// If the factory method fails, None is returned.
+    /// Get the value from the cache corresponding to the given `key`, creating and storing it if it is not yet cached
+    /// OR if its created date is older than the given `expiry_duration`.
+    /// If the `factory` method fails to create the item, `None` is returned.
     /// If the item is found but has expired, this will register as both a hit and a miss. 
     fn get_or_expire(&mut self, key : &K, factory : &dyn Fn(&K)->Option<V>, expiry_duration : Duration) -> Option<V> {
         match self.get(key) {
@@ -108,7 +115,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// The maximum capacity allocated for the cache.
     fn capacity(&self) -> usize { self.get_info().capacity }
 
-    /// If the cache full, with its size equaling its capacity?
+    /// Is the cache full, with its size equaling its capacity?
     fn is_full(&self) -> bool { self.capacity() == self.size() }
 
     /// The number of calls to get or get_or_add that succeeded in finding the requested object already present in the cache.
@@ -117,11 +124,11 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// The number of calls to get or get_or_add that failed in finding the requested object already present in the cache.
     fn misses(&self) -> usize { self.get_info().misses }
 
-    /// Remove the key and its associated values from the cache, if it is present.
+    /// Remove the `key` and its associated value from the cache, if it is present.
     /// Return true if the value was present and removed, false if the value was not previously present.
     fn remove(&mut self, key : &K) -> bool;
 
-    /// Empty the Cache and reset the statistics (hits and misses). 
+    /// Empty the Cache and reset the statistics (`hits` and `misses`). 
     fn clear(&mut self) -> ();
 }
 
@@ -176,16 +183,16 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 /// I am convinced that similar reasoning led to Redis using 10 probes for their algorithm that segregated 
 /// old from new; that change in data structure yields better math; their way they have a 
 /// 
-/// Using a ring buffer is performant, but the logic has tricky edge cases. 
+/// Using a ring buffer would be performant, but the logic has tricky edge cases. 
 /// If the performance is good enough, simplicity is better. 
 /// 
 /// Layout of entries: 
-///    - entries is filled to capacity initially with None, so do not rely upon entries.size() for the count of items
+///    - `entries` is filled to capacity initially with `None`, so do not rely upon `entries.size()` for the count of items
 ///      in the cache. 
-///    - The entries from position zero to EVICTION_CANDIDATES_SIZE - 1 hold the eviction candidates.
-///    - The entries from position EVICTION_CANDIDATES_SIZE to capacity - 1 hold the remaining cache entries. 
-///    - Until the cache fills, new entries are added to position self.info.size. 
-///    - Whenever an item is removed from the middle of the entries Vec, the hole is usually filled by swapping the None with
+///    - The entries from position zero to `EVICTION_CANDIDATES_SIZE - 1` hold the eviction candidates.
+///    - The entries from position `EVICTION_CANDIDATES_SIZE` to capacity - 1 hold the remaining cache entries. 
+///    - Until the cache fills, new entries are added to position `self.info.size`. 
+///    - Whenever an item is removed from the middle of the entries Vec, the hole is usually filled by swapping the `None` with
 ///      the entry at the end of entries. 
 pub struct ApproximateLRUCache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
@@ -194,27 +201,28 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// The beginning of the Vec holds the eviction candidates, items likely to soon be evicted. 
     entries : Vec<Option<CacheEntry<K,V>>>,
 
-    /// For each cache key, associate a position in the entries buffer as part of a bi-directional index. 
+    /// For each cache key, associates a position in the entries buffer as part of a bi-directional index. 
     position_for_key : HashMap<Rc<K>, usize>,
 
-    /// Useful Statistics about cache usage
+    /// Useful Statistics about cache usage.
     info : CacheInfo,
 
     /// Random number generator to use when probing for better eviction candidates.
     rng : ThreadRng,
 
-    /// Distribution to sample when generating random numbers
+    /// Distribution to sample when generating random numbers that prevents sampling out of range values.
     distribution : Uniform<usize>,
 
-    /// Number of random probes to use when searching for eviction candidates
+    /// Number of random probes to use when searching for eviction candidates.
     eviction_probes : usize
 }
 
 impl<K,V> ApproximateLRUCache<K,V> 
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone {
-    /// Construct a new ApproximateLRUCache with a given capacity.
-    /// If the requested capacity is too small, it will be increased.
+    /// Construct a new `ApproximateLRUCache` with a given `capacity`.
+    /// If the requested capacity is too small to accommodate `EVICTION_CANDIDATES_SIZE`, the `capacity` will be increased.
+    /// `eviction_probes` defaults to `DEFAULT_EVICTION_PROBE_COUNT`.
     pub fn new(capacity : usize) -> Self {
         let acceptable_capacity = max(capacity, 4 * EVICTION_CANDIDATES_SIZE);
         ApproximateLRUCache {
@@ -227,7 +235,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         }
     }
 
-    /// Swap two entries, returning true on a successful swap, false otherwise.
+    /// Swap two `entries` at the given positions, returning true on a successful swap, false otherwise.
     /// If the positions are out of range, or equal, or either position points to None for an entry,
     /// swapping will fail. 
     fn swap_entries(&mut self, position1 : usize, position2 : usize) -> bool {
@@ -250,7 +258,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         }
     }
 
-    /// Compare the entry at the probe_position to the entry at the candidate_position and return true if the probe
+    /// Compare the entry at the `probe_position` to the entry at the `candidate_position` and return true if the probe
     /// was last accessed before the last time the candidate was accessed.
     fn is_entry_older(&self, probe_position : usize, candidate_position : usize) -> bool {
         if probe_position == candidate_position { return false; }
@@ -264,9 +272,17 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// The eviction policy involves random probing to search for the item that was least recently used. 
     /// It is approximate; the odds are favorable that the evicted item is among the ten percent of oldest items, but
     /// it is not guaranteed. 
+    /// If an item is evicted, this guarantees that the remaining items are rearranged such that 
+    /// the hole in the cache's entries Vec is at the end of the Vec. 
     fn evict_if_full(&mut self) -> bool {
         if !self.is_full() { return false; }
 
+        // Eviction Algorithm overview:
+        //   - Compare several items drawn randomly from entries to find the least recently used among them.
+        //   - When an item is found that is older than an item in the eviction candidates section of the entries,
+        //     swap that "probe" item with the newer "candidate" item.
+        //   - Swap the oldest encountered item with the item at the end of the cache.
+        //   - Remove the item at the end of the cache from both entries and position_for_key. 
         let last_position = self.size() - 1;
         let mut oldest_candidate_position = 0;
         for _ in 0..self.eviction_probes {
@@ -304,8 +320,11 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         self.remove(&evicted_key)
     }
 
+    /// Permits `eviction_probes` to be modified, with the constraint that it fall between 
+    /// `MINIMUM_EVICTION_PROBE_COUNT` and `capacity()/3`.
     pub fn set_probe_count(&mut self, new_count : usize) {
-        self.eviction_probes = min(self.size() / 3, max(MINIMUM_EVICTION_PROBE_COUNT, new_count));
+        // Could use num::clamp here for clarity, but why import a whole crate for one method?
+        self.eviction_probes = min(self.capacity() / 3, max(MINIMUM_EVICTION_PROBE_COUNT, new_count));
     }
 }
 
@@ -313,12 +332,12 @@ impl<K,V> Cache<K,V> for ApproximateLRUCache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
 {
-    /// Add a value to the cache if it is not already present, or replace the value currently there if it is.
+    /// Add a `value` to the cache if it is not already present, or replace the value currently there if it is.
     /// In either case, the value will be Cloned before being stored.
     /// Returns true if the value was added, false if replaced.
-    /// Only if update_stats is true will the misses count be incremented.
+    /// Only if `update_stats` is true will the `misses` count be incremented.
     /// 
-    /// If the cache is full (with size equaling capacity) and the item is not already present (hence is not
+    /// If the cache is full (with `size` equaling `capacity`) and the item is not already present (hence is not
     /// replaceable) then before it can be added, an eviction must occur. 
     fn add_or_replace(&mut self, key : &K, value : &V, update_stats : bool) -> bool {
         if update_stats {
@@ -340,12 +359,14 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
                         false
                     },
                     None => {
-                        panic!("Cache entry for key {:?} is empty", *rc_key);
+                        panic!("key {:?} refers to an empty cache entry", *rc_key);
                     }
                 }
             },
             None => {
                 // Evict an entry (if necessary), then add a new entry to the end.
+                // The Rc's are handled such that the key points to the same underlying key object
+                // in both the CacheEntry in the entries Vec and the HashMap position_for_key.
                 self.evict_if_full();
                 self.entries[self.info.size] = Some(CacheEntry::new(rc_key.clone(), Rc::new(value.clone()), self.info.access_count));
                 self.position_for_key.insert(rc_key, self.info.size);
@@ -453,6 +474,28 @@ mod tests {
             _ => panic!("Unable to get key")
         }
         asserting("one hit after second get").that(&cache.hits()).is_equal_to(1);
+    }
+
+    #[test]
+    /// After a warmup round of insertions that exceeds the Cache's capacity, verify that the majority of newer keys were not evicted. 
+    fn eviction_accuracy() {
+        let mut cache = ApproximateLRUCache::new(1000);
+        let factory = &|k:&i32| -> Option<String> { Some(k.to_string()) };
+        // We are adding 10,000 keys to a cache that holds 1,000. 
+        // We will call the numbers 9,000 to 9,999 "newer". The goal is for newer keys to constitute 90% of the values in the cache. 
+        for key in 0..10000 {
+            cache.get_or_add(&key, factory);
+        }
+        asserting("cache should be full").that(&cache.is_full()).is_equal_to(true);
+        asserting("cache size should be right").that(&cache.size()).is_equal_to(1000);
+
+        let hits_before = cache.hits();
+        for key in 9000..10000 {
+            cache.get(&key);
+        }
+        let hits_after = cache.hits();
+        let new_hits = hits_after - hits_before;
+        asserting("evictions retained enough new keys").that(&(new_hits >= 900)).is_equal_to(true);
     }
 
 }
