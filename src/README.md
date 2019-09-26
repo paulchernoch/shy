@@ -22,6 +22,13 @@ To run the repl, type this:
 
 Enter one expression per line. If you set the value of a variable one one line, it will be available to formulas on the next line.
 
+There are a few special commands:
+
+  - **trace on** - Show the entire process of executing the expression, phrase by phase.
+  - **trace off** - Turn off the detailed execution tracing.
+  - **exit** - Exit the program.
+  - **quit** - Exit the program.
+
 ## Expression Syntax
 
 Expressions may be written using the following elements:
