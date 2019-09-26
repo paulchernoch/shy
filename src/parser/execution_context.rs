@@ -6,6 +6,7 @@ use std::fmt;
 use super::shy_scalar::ShyScalar;
 use super::shy_token::ShyValue;
 use super::shy_object::ShyObject;
+use super::voting_rule::VotingRule;
 
 //..................................................................
 
@@ -72,16 +73,50 @@ impl<'a> ExecutionContext<'a> {
     ///    - the value to return if the test is false.
     pub fn shy_if_func() -> ShyFunction<'a>
     {
-            Ctx::shy_func(move |v| {
-                match v {
-                    ShyValue::Vector(ref vect) if vect.len() == 3 => match vect[0] {
-                        ShyScalar::Boolean(test) => ShyValue::Scalar(if test { vect[1].clone() } else { vect[2].clone() }),
-                        _ => ShyValue::error("'if' function first argument must be a boolean value".into())
-                    },
-                    _ => ShyValue::error("'if' function requires exactly three arguments".into())
-                }
-            })
+        Ctx::shy_func(move |v| {
+            match v {
+                ShyValue::Vector(ref vect) if vect.len() == 3 => match vect[0] {
+                    ShyScalar::Boolean(test) => ShyValue::Scalar(if test { vect[1].clone() } else { vect[2].clone() }),
+                    _ => ShyValue::error("'if' function first argument must be a boolean value".into())
+                },
+                _ => ShyValue::error("'if' function requires exactly three arguments".into())
+            }
+        })
     }    
+
+    pub fn shy_voting_func(function_name : String, rule : VotingRule) -> ShyFunction<'a>
+    {
+        Ctx::shy_func(move |v| {
+            match v {
+                ShyValue::Vector(ref vect) if vect.len() == 0 => {
+                    let vote = match rule {
+                        VotingRule::None => true,
+                        VotingRule::Unanimous =>  true,
+                        _ => false
+                    };
+                    vote.into()
+                },
+                ShyValue::Vector(ref vect) if vect.len() > 0 => {
+                    let full_count = vect.len();
+                    let true_count = vect.iter().filter(|&v| v.is_truthy()).count();
+                    let vote = match rule {
+                        VotingRule::None => true_count == 0,
+                        VotingRule::One => true_count == 1,
+                        VotingRule::Any => true_count > 0,
+                        VotingRule::Minority => true_count > 0 && true_count < (full_count + 1) / 2,
+                        VotingRule::Half => true_count * 2 == full_count,
+                        VotingRule::Majority => true_count > full_count / 2,
+                        VotingRule::TwoThirds => true_count >= full_count * 2 / 3,
+                        VotingRule::AllButOne => true_count > 0 && true_count == full_count - 1,
+                        VotingRule::All => true_count == full_count,
+                        VotingRule::Unanimous =>  true_count == 0 || true_count == full_count
+                    };
+                    vote.into()
+                },
+                _ => ShyValue::error(format!("'{}' function requires a vector as argument", function_name).into())
+            }
+        })
+    }  
 
     pub fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
         let mut map = HashMap::new();
@@ -118,6 +153,18 @@ impl<'a> ExecutionContext<'a> {
 
         // The 'if' function
         map.insert("if".to_string(), Ctx::shy_if_func());
+
+        // Voting functions, that count how many true versus false values are among the arguments
+        map.insert("none".into(), Ctx::shy_voting_func("none".into(), VotingRule::None));
+        map.insert("one".into(), Ctx::shy_voting_func("one".into(), VotingRule::One));
+        map.insert("any".into(), Ctx::shy_voting_func("any".into(), VotingRule::Any));
+        map.insert("minority".into(), Ctx::shy_voting_func("minority".into(), VotingRule::Minority));
+        map.insert("half".into(), Ctx::shy_voting_func("half".into(), VotingRule::Half));
+        map.insert("majority".into(), Ctx::shy_voting_func("majority".into(), VotingRule::Majority));
+        map.insert("twothirds".into(), Ctx::shy_voting_func("twothirds".into(), VotingRule::TwoThirds));
+        map.insert("allbutone".into(), Ctx::shy_voting_func("allbutone".into(), VotingRule::AllButOne));
+        map.insert("all".into(), Ctx::shy_voting_func("all".into(), VotingRule::All));
+        map.insert("unanimous".into(), Ctx::shy_voting_func("unanimous".into(), VotingRule::Unanimous));
 
         map
     }

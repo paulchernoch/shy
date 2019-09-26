@@ -17,6 +17,7 @@ use shy_token::ShyValue;
 
 pub mod factorial;
 pub mod associativity;
+pub mod voting_rule;
 use associativity::Associativity;
 
 pub mod execution_context;
@@ -924,6 +925,19 @@ mod tests {
         let expr = "smart = true; answer = if(smart, 42, 0)";
         execute_test_case(expr, &mut ctx, &expected, true); 
         asserting("if function")
+            .that(&ctx.load(&"answer".to_string()).unwrap())
+            .is_equal_to(&expected);
+    }
+
+    #[test]
+    /// Verify that the `majority` function works.
+    fn exec_majority() {
+        let mut ctx = ExecutionContext::default();
+
+        let expected: ShyValue = true.into();
+        let expr = "tall = false; dark = true; handsome = true; answer = majority(tall, dark, handsome)";
+        execute_test_case(expr, &mut ctx, &expected, true); 
+        asserting("majority function")
             .that(&ctx.load(&"answer".to_string()).unwrap())
             .is_equal_to(&expected);
     }

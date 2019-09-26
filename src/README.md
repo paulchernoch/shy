@@ -56,6 +56,23 @@ Expressions may be written using the following elements:
 
   - **function calls** - If a token resembling a variable name immediately precedes an opening parenthesis, that name will be interpreted as a function name. Shy recognizes the common trigonometric functions, like `sin`, `cos`, and `tan`, as well as `exp`, `ln`, `sqrt` and `abs`. The caller can also define their own functions and bind them to an `ExecutionContext`. One useful function is `if(test, a, b)`, which takes three expressions: a test returning true or false, a second to return if the test is true, and a third to return if the test is false. See method `ExecutionContext::standard_functions` for the full list of predefined functions. (Also see method `standard_variables` for the list of predefined constants, including `π, e and φ`.)
 
+One subset of the functions are the voting functions, that take one or more expressions that evaluate to true or false:
+
+  -  none - True if None are true
+  -  one - True if Exactly one is true
+  -  any - True if One or more are true
+  -  minority - True if Less than half (but at least one) are true
+  -  half - True if Half or more are true
+  -  majority - True if More than half are true
+  -  twothirds - True if Two-thirds or more are true
+  -  allbutone - True if Exactly one is false
+  -  all - True if All are true 
+  -  unanimous - True if All are true OR All are false
+
+An example expression that calls the majority function:
+
+`tall = false; dark = true; handsome = true; answer = majority(tall, dark, handsome)`
+
 If an expression fails due to numbers that are out of range or any other problem, a special error value is returned.
 
 ## Using the Cache to speed up Expression evaluation
