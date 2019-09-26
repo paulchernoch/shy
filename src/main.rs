@@ -1,6 +1,20 @@
 #![allow(dead_code)]
 #![recursion_limit="128"]
 
+//! # Shy: Shunting Yard Expression Parser and Evaluator
+//!
+//! `shy` is a rules engine that can compile infix expressions into postfix expressions, then execute them.
+//! 
+//! This application has three main modules (so far): 
+//! 
+//!    1. `lexer` is the lexical analyzer that tokenizes mathematical expressions given as strings.
+//!    2. `parser` executes the **Shunting Yard** algorithm that compiles the tokens into an 
+//!        expression and executes the expression.
+//!    3. `cache` implements an approximate LRU (least recently used) cache. 
+//!       Used together with the expression compiler to reuse the formulas that have already been compiled,
+//!       this speeds the execution of the expressions up tenfold. 
+//!    
+
 extern crate itertools;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate enum_derive;
