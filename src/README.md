@@ -20,6 +20,8 @@ To run the repl, type this:
 > cargo run
 ```
 
+Enter one expression per line. If you set the value of a variable one one line, it will be available to formulas on the next line.
+
 ## Expression Syntax
 
 Expressions may be written using the following elements:
@@ -34,7 +36,7 @@ Expressions may be written using the following elements:
   - **operators** - Lots of them! They mostly follow the same precedence and associativity as popular computer languages.
     
      * `!` - This may be the **logical not** if it comes before an expression, or **factorial**, if it comes after.
-     * `,` - The **comma operator** is used to collect multiple values into a list, to be used as the argument to a function.
+     * `,` - The **comma operator** is used to collect multiple values into a list, to be used as inputs to a function.
      * `;` - **Semicolons** separate one subexpression from another. You can have one expression set a variable, then use that variable in the next expression.
      * `^` - **Exponentiation**. This raises a number to a power.
      * `¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁰` - **Superscripted numbers** can be used to raise a value to a power in place of the exponentiation operator.
@@ -48,3 +50,47 @@ Expressions may be written using the following elements:
   - **function calls** - If a token resembling a variable name immediately precedes an opening parenthesis, that name will be interpreted as a function name. Shy recognizes the common trigonometric functions, like `sin`, `cos`, and `tan`, as well as `exp`, `ln`, `sqrt` and `abs`. The caller can also define their own functions and bind them to an `ExecutionContext`. One useful function is `if(test, a, b)`, which takes three expressions: a test returning true or false, a second to return if the test is true, and a third to return if the test is false. See method `ExecutionContext::standard_functions` for the full list of predefined functions. (Also see method `standard_variables` for the list of predefined constants, including `π, e and φ`.)
 
 If an expression fails due to numbers that are out of range or any other problem, a special error value is returned.
+
+## Using the Cache to speed up Expression evaluation
+
+Parsing takes the bulk of the time when executing `Expressions`. On a Windows Tablet, these were the results of a performance test, demonstrating how useful it is to employ a cache:
+
+  - 4,400 evals per sec without cache 
+  - 42,600 evals per sec with a cache
+
+Here is an example of how to use a cache:
+
+```
+        let mut cache : ApproximateLRUCache<String, Expression> 
+            = ApproximateLRUCache::new(10000);
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"x1".to_string(), 5.into());
+        ctx.store(&"y1".to_string(), 10.into());
+        ctx.store(&"x2".to_string(), 1.into());
+        ctx.store(&"y3".to_string(), 7.into());
+        let expression_text = "distance = √((x1-x2)² + (y1-y2)²)";
+        let expression = cache.get_or_add(
+            &expression_text.to_string(), 
+            & |expr| {
+                let shy : ShuntingYard = expr.into();
+                let compiled = shy.compile().unwrap();
+                compiled
+            } ).unwrap();
+        let result = expression.exec(ctx).unwrap();
+```
+
+The above code, of course, should be rewritten to use match statements and handle errors properly, since the `unwrap` calls could cause a panic if an expression with a syntax error is encountered.
+
+The closure performs the parsing and is only called if the `Expression` is not found in the cache. In that case, the `Expression` is created and added to the cache.
+
+1. The first statement allocates a cache with maximum capacity of 10,000. It is defined to expect a `String` as a key and a compiled `Expression` as a value. 
+2. The next statement allocates a default `ExecutionContext` that has the standard math functions and constants defined, as well as the "if" function.
+3. The next four statements define and initialize variables in the context that will be available to our expressions. The `to_string()` call is necessary to convert the literal from an unowned string slice into an owned string, 
+and the `&` then borrows it for use in the call to `store`. Lastly, the `into` call converts the integer values into `ShyValue` structs using type inference, because the second function argument of `store` is expected to be a `ShyValue`.
+4. After defining the string version of a distance formula...
+5. ... we attempt to retrieve its compiled `Expression` from the cache by calling `get_or_add`.
+6. The call to `get_or_add` requires a closure as its second argument. This closure is only called if the expression is not found in the cache already. It acts as a factory to convert the string expression into a compiled `Expression` object, using the `ShuntingYard` struct's `compile` method. After calling this delegate, `get_or_add` will add it to the cache.
+7. Finally, with a compiled `Expression` in hand, we can call `exec` and `unwrap` the returned `Result` enum to get the value of the expression.
+
+Since the result was also written to the context as the variable **distance**, we could also read the result from the context using `ExecutionContext::load`.
+
