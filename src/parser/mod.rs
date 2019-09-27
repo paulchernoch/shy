@@ -785,9 +785,9 @@ mod tests {
     #[test]
     fn exec_associativity() {
         let mut ctx = ExecutionContext::default();
-        ctx.store(&"b".into(), 2.into());
-        ctx.store(&"c".into(), 3.into());
-        ctx.store(&"d".into(), 4.into());
+        ctx.store(&"b".into(), 2);
+        ctx.store(&"c".into(), 3);
+        ctx.store(&"d".into(), 4);
         let expected: ShyValue = 14.into();
         execute_test_case("a = b + c * d", &mut ctx, &expected, false); 
         asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
@@ -796,9 +796,9 @@ mod tests {
     #[test]
     fn exec_fancy() {
         let mut ctx = ExecutionContext::default();
-        ctx.store(&"b".into(), 2.into());
-        ctx.store(&"c".into(), 3.into());
-        ctx.store(&"d".into(), 25.into());
+        ctx.store(&"b".into(), 2);
+        ctx.store(&"c".into(), 3);
+        ctx.store(&"d".into(), 25);
         let expected: ShyValue = 5.0.into();
         execute_test_case("a = ((b^3 + c) * √d - 10)/9", &mut ctx, &expected, true); 
         asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
@@ -807,7 +807,7 @@ mod tests {
     #[test]
     fn exec_regex() {
         let mut ctx = ExecutionContext::default();
-        ctx.store(&"a".into(), "A9123".into());
+        ctx.store(&"a".into(), "A9123");
         let expected: ShyValue = true.into();
         execute_test_case("a ~ /9[0-9]+3/", &mut ctx, &expected, true); 
     }
@@ -816,7 +816,7 @@ mod tests {
     #[test]
     fn exec_semicolon() {
         let mut ctx = ExecutionContext::default();
-        ctx.store(&"a".into(), 10.into());
+        ctx.store(&"a".into(), 10);
         let expected: ShyValue = 80.into();
         execute_test_case("x = 2 * a; y = a^2; z = y - x", &mut ctx, &expected, true); 
         asserting("first result written to context").that(&ctx.load(&"x").unwrap()).is_equal_to(&20.into());
@@ -953,8 +953,8 @@ mod tests {
     fn expression_cache_performance() {
         let mut cache : ApproximateLRUCache<String, Expression> = ApproximateLRUCache::new(10000);
         let mut ctx = ExecutionContext::default();
-        ctx.store(&"x".to_string(), 5.into());
-        ctx.store(&"y".to_string(), 10.into());
+        ctx.store(&"x".to_string(), 5);
+        ctx.store(&"y".to_string(), 10);
         let mut expressions : Vec<ExpressionCacheTest> = Vec::new();
         for i in 0..100 {
             for j in 0..100 {

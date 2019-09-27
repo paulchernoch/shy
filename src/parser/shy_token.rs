@@ -811,7 +811,7 @@ impl ShyValue {
                         current
                     },
                     None => {
-                        ctx.store(name, 1.into());
+                        ctx.store(name, 1);
                         0.into()
                     }
                 }
@@ -1331,7 +1331,7 @@ mod tests {
     fn shyvalue_plus_assign() {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
-        ctx.store(&x, 10.into());
+        ctx.store(&x, 10);
         assignment_operator_test(
             &ShyValue::Variable(x), 
             &1.into(), 
@@ -1345,7 +1345,7 @@ mod tests {
     fn shyvalue_minus_assign() {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
-        ctx.store(&x, 10.5.into());
+        ctx.store(&x, 10.5);
         assignment_operator_test(
             &ShyValue::Variable(x), 
             &1.into(), 
@@ -1359,7 +1359,7 @@ mod tests {
     fn shyvalue_multiply_assign() {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
-        ctx.store(&x, 6.into());
+        ctx.store(&x, 6);
         assignment_operator_test(
             &ShyValue::Variable(x), 
             &7.into(), 
@@ -1373,7 +1373,7 @@ mod tests {
     fn shyvalue_divide_assign() {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
-        ctx.store(&x, 6.into());
+        ctx.store(&x, 6);
         assignment_operator_test(
             &ShyValue::Variable(x), 
             &24.into(), 
@@ -1387,7 +1387,7 @@ mod tests {
     fn shyvalue_modulo_assign() {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
-        ctx.store(&x, 21.into());
+        ctx.store(&x, 21);
         assignment_operator_test(
             &ShyValue::Variable(x), 
             &6.into(), 
@@ -1402,7 +1402,7 @@ mod tests {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
         let x_var = &ShyValue::Variable(x.clone());
-        ctx.store(&x, true.into());
+        ctx.store(&x, true);
         assignment_operator_test(x_var, &true.into(), &mut ctx, &true.into(), &ShyValue::and_assign);
         assignment_operator_test(x_var, &false.into(), &mut ctx, &false.into(), &ShyValue::and_assign);
         assignment_operator_test(x_var, &true.into(), &mut ctx, &false.into(), &ShyValue::and_assign);
@@ -1414,7 +1414,7 @@ mod tests {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
         let x_var = &ShyValue::Variable(x.clone());
-        ctx.store(&x, false.into());
+        ctx.store(&x, false);
         assignment_operator_test(x_var, &false.into(), &mut ctx, &false.into(), &ShyValue::or_assign);
         assignment_operator_test(x_var, &true.into(), &mut ctx, &true.into(), &ShyValue::or_assign);
         assignment_operator_test(x_var, &false.into(), &mut ctx, &true.into(), &ShyValue::or_assign);
@@ -1437,7 +1437,7 @@ mod tests {
         let mut ctx = ExecutionContext::default();
         let x = "x".to_string();
         let x_var = &ShyValue::Variable(x.clone());
-        ctx.store(&x, 3.into());
+        ctx.store(&x, 3);
         post_operator_test(x_var, &mut ctx, &3.into(), &2.into(), &ShyValue::post_decrement);
         post_operator_test(x_var, &mut ctx, &2.into(), &1.into(), &ShyValue::post_decrement);
         post_operator_test(x_var, &mut ctx, &1.into(), &0.into(), &ShyValue::post_decrement);

@@ -198,8 +198,10 @@ impl<'a> ExecutionContext<'a> {
     }    
 
     /// Store a new value for the variable in the context.
-    pub fn store(&mut self, name: &String, val: ShyValue) {
-        self.variables.insert(name.clone(), val);
+    pub fn store<V>(&mut self, name: &String, val: V)
+    where V : Into<ShyValue>
+    {
+        self.variables.insert(name.clone(), val.into());
     }
 
     /// Store a new value in the object indicated by the path of property names. 
