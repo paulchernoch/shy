@@ -370,6 +370,12 @@ impl<'a> Expression<'a> {
             }
             match token {
                 ShyToken::Value(value) => output_stack.push(value),
+                ShyToken::Operator(ShyOperator::QuitIfFalse) => {
+                    let test_result = Self::operate(&mut output_stack, ShyOperator::QuitIfFalse, context);
+                    if test_result.is_falsey() {
+                        break;
+                    }
+                },
                 ShyToken::Operator(op) => { 
                     Self::operate(&mut output_stack, op, context);
                     ()
@@ -436,8 +442,8 @@ impl<'a> Expression<'a> {
     fn operate(output_stack: &mut Vec<ShyValue>, op: ShyOperator, context: &mut ExecutionContext<'a>) -> ShyValue {
         if Self::does_stack_have_error(output_stack) { return output_stack.last().unwrap().clone(); }
         if !Self::is_stack_size_sufficient(output_stack, op)   {
-            output_stack.clear();
             let stack_empty = ShyValue::error(format!("Too few values on stack for operation {:?}. Size = {}", op, output_stack.len()));
+            output_stack.clear();
             output_stack.push(stack_empty.clone());
             return stack_empty;
         }
@@ -521,6 +527,16 @@ impl<'a> Expression<'a> {
             ShyOperator::ModAssign => ShyValue::modulo_assign(&arg1, &arg2, context),
             ShyOperator::AndAssign => ShyValue::and_assign(&arg1, &arg2, context),
             ShyOperator::OrAssign => ShyValue::or_assign(&arg1, &arg2, context),
+            ShyOperator::QuitIfFalse => {
+                if arg1.is_falsey() {
+                    output_stack.push(false.into());
+                    false.into()
+                }
+                else {
+                    output_stack.push(true.into());
+                    true.into()
+                }
+            },
             _ => {
                 output_stack.clear();
                 let unsupported = ShyValue::error(format!("Invalid operator {:?}", op));
@@ -941,6 +957,20 @@ mod tests {
             .that(&ctx.load(&"answer".to_string()).unwrap())
             .is_equal_to(&expected);
     }
+
+    #[test]
+    /// Verify that the `?` operator works.
+    fn exec_quit_if_false() {
+        let mut ctx = ExecutionContext::default();
+
+        let expected_result: ShyValue = false.into();
+        let expected_y: ShyValue = 1.into();
+        let expr = "x = 10; x > 5 ?; y = 1; x > 20? ; y = 2";
+        execute_test_case(expr, &mut ctx, &expected_result, true); 
+        asserting("? operator")
+            .that(&ctx.load(&"y".to_string()).unwrap())
+            .is_equal_to(&expected_y);
+    }    
 
     #[test]
     /// Verify that if expressions are cached, they still execute properly and it takes less time to execute them.

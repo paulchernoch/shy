@@ -53,6 +53,7 @@ custom_derive! {
         And, 
         Or, 
         Ternary,
+        QuitIfFalse,
         Assign,
         PlusAssign,
         MinusAssign,
@@ -107,6 +108,7 @@ impl ShyOperator {
             ShyOperator::And => 5, 
             ShyOperator::Or => 4, 
             ShyOperator::Ternary => 3,
+            ShyOperator::QuitIfFalse => 3,
             ShyOperator::Assign => 2,
             ShyOperator::PlusAssign => 2,
             ShyOperator::MinusAssign => 2,
@@ -159,6 +161,7 @@ impl ShyOperator {
             ShyOperator::Load => 1,
             ShyOperator::Store => 1,
             ShyOperator::Semicolon => 0,
+            ShyOperator::QuitIfFalse => 1,
             // FunctionCall is variable, but the first argument is the function name while the rest of the arguments are packed into a single Vec by the comma operators.
             ShyOperator::FunctionCall => 2,
             ShyOperator::OpenParenthesis => 0,
@@ -250,8 +253,10 @@ impl From<ParserToken> for ShyOperator {
             ParserToken::LogicalOp(ref s) if *s == "&&" => ShyOperator::And, 
             ParserToken::LogicalOp(ref s) if *s == "||"  => ShyOperator::Or, 
 
-            ParserToken::QuestionMark => ShyOperator::Ternary,
-            ParserToken::Colon => ShyOperator::Ternary,
+            // Will not support ternary operator. Using ? for another purpose. 
+            // ParserToken::QuestionMark => ShyOperator::Ternary,
+            // ParserToken::Colon => ShyOperator::Ternary,
+            ParserToken::QuestionMark => ShyOperator::QuitIfFalse,
 
             ParserToken::AssignmentOp(ref op) if *op == "=" => ShyOperator::Assign, 
             ParserToken::AssignmentOp(ref op) if *op == "+=" => ShyOperator::PlusAssign, 
