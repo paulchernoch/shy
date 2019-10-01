@@ -33,6 +33,7 @@ extern crate rand;
 mod cache;
 mod parser;
 mod lexer;
+mod rule;
 use parser::execution_context::ExecutionContext;
 // use parser::shy_scalar::ShyScalar;
 use parser::shy_token::ShyValue;
