@@ -1,5 +1,6 @@
 
 use crate::parser::expression::Expression;
+use crate::parser::expression::Expressive;
 
 custom_derive! {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(RuleTypeVariants), IterVariantNames(RuleTypeVariantNames))]
@@ -89,4 +90,9 @@ pub struct Rule<'a> {
     /// Property chains that begin with "rule." are excluded, as they define meta data common to many rules. 
     dependencies : Vec<String>
 }
+
+impl<'a> Expressive<'a> for Rule<'a> {
+    fn express(&self) -> &Expression<'a> { &self.expression }
+}
+
 

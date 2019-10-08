@@ -304,12 +304,7 @@ impl<'a> ShuntingYard<'a> {
         match self.parse() {
             Ok(_) => {
                 // TODO: Optimizations like constant folding, And/Or operator short-cutting, branching.
-                Ok(Expression { 
-                    marker: PhantomData,
-                    expression_source: self.expression_source.clone(),
-                    postfix_order: self.postfix_order.clone(),
-                    trace_on: false
-                })
+                Ok(Expression::new_from_parser(self.expression_source, &self.postfix_order))
             },
             Err(s) => Err(format!("{}\n{:?}", s, self))
         }

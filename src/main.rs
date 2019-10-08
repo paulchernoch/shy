@@ -34,6 +34,7 @@ mod cache;
 mod parser;
 mod lexer;
 mod rule;
+mod graph;
 use parser::execution_context::ExecutionContext;
 // use parser::shy_scalar::ShyScalar;
 use parser::shy_token::ShyValue;
