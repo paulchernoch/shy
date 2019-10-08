@@ -41,6 +41,7 @@ impl Graph {
     }
 
     /// Add a directional edge that starts at `from_node` and points to `to_node`.
+    /// `from_node` is a dependency, whereas `to_node` is a dependent node.
     pub fn add_edge(&mut self, from_node : usize, to_node : usize) {
         self.outgoing_edges[from_node]
           .get_or_insert_with(HashSet::new)
@@ -151,4 +152,29 @@ impl Graph {
         let unsortable = unsorted.iter().map(|i| *i).collect();
         (sortable, unsortable)
     }
+}
+
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[allow(unused_imports)]
+    use spectral::prelude::*;
+
+
+    #[test]
+    /// Perform topological sort of the nodes in a DAG.
+    pub fn topological_sort_no_cycles() {
+        // Expected order: 0, 1, 2, 3, 4, 5, 6
+        let mut graph = Graph::new(7);
+        graph.add_edge(2, 6);
+        graph.add_edge(2, 5);
+        graph.add_edge(1, 3);
+        graph.add_edge(3, 4);
+        let (ordered, unordered) = graph.sort();
+        asserting("Should be no unordered nodes").that(&unordered.len()).is_equal_to(0);
+        let ordered_comparison = ordered.iter().eq(vec!(0,1,2,3,4,5,6).iter());
+        asserting("Ordered node ids should be ascending").that(&ordered_comparison).is_equal_to(true);
+    }
+
 }
