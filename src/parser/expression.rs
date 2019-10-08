@@ -1,13 +1,16 @@
 use std::marker::PhantomData;
 use std::collections::HashSet;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::borrow::BorrowMut;
 
 use super::shy_token::{ShyToken, ShyValue};
 use super::ShuntingYard;
 use super::execution_context::ExecutionContext;
 use super::shy_operator::ShyOperator;
 use super::shy_scalar::ShyScalar;
+use crate::graph::Graph;
 
 //..................................................................
 
@@ -177,10 +180,12 @@ pub struct Expression<'a> {
 
 pub trait Expressive<'a> {
     fn express(&self) -> &Expression<'a>;
+    fn express_mut(&mut self) -> &mut Expression<'a>;
 }
 
 impl<'a> Expressive<'a> for Expression<'a> {
-    fn express(&self) -> &Self { &self }
+    fn express(&self) -> &Self { self }
+    fn express_mut(&mut self) -> &mut Self { self }
 }
 
 impl<'a> Expression<'a> {
@@ -433,6 +438,31 @@ impl<'a> Expression<'a> {
         self.references.clone()
     }
 
+    /// A clone of the References to variables defined or used by the Expression.
+    pub fn get_references(&self) -> References {
+        let variables_used_rro = self.variables_used(); //.clone();
+        let variables_used_ro = variables_used_rro.as_ref().borrow();
+        match *variables_used_ro {
+            Some(ref refs) => {
+                refs.clone()
+            },
+            None => panic!("No References in Expression")
+        }
+    }
+
+    /// Every dependency of the Expression found in external_dependencies will be restated 
+    /// as an external_dependency inside references.
+    pub fn apply_external_dependencies(&self, external_dependencies : &HashSet<String>) {
+        let variables_used_rro = self.variables_used().clone();
+        let mut variables_used_ro = variables_used_rro.as_ref().borrow_mut();
+        match *variables_used_ro {
+            Some(ref mut refs) => {
+                refs.apply_external_dependencies(external_dependencies);
+            },
+            None => panic!("No References in Expression")
+        }
+    }
+
     /// If references holds a None, it is uninitialized, therefore initialize it lazily and return true, 
     /// else return false to say no initialization was necessary. 
     fn lazy_init_variables_used(&self) -> bool {
@@ -476,6 +506,58 @@ impl<'a> Expression<'a> {
         true
     }
 
+    /// Build the dependency graph for a list of Expressions. 
+    ///   - Variables used in an expression that are not defined are dependencies, to be represented as nodes
+    ///     that point via an incoming edge to the node corresponding to the Expression. 
+    ///   - Variables that an Expression defines are definitions, to be represented as nodes
+    ///     to which the Expression points via an outgoing edge. 
+    fn dependency_graph<'b, X>(expressions : &mut Vec<X>) -> Graph
+    where X : Expressive<'b>    
+     {
+        // Infer the external dependencies upon variables (which must be provided by the execution context)
+        // by studying all the expressions. 
+        let external_deps = References::infer_external_dependencies(expressions);
+
+        // Apply the external dependencies to the expressions, so they can discriminate between internal and external dependencies.
+        // As we go, also create a concordance, to map each dependency or definition (the variable names) to a number, 
+        // starting at expressions.size(). 
+        // This unique number will become the node_id for that variable name in the graph. 
+        let mut variable_to_id : HashMap<String, usize> = HashMap::new();
+        let mut highest_node_id : usize = expressions.len() - 1;
+        for expr in expressions.iter().map(|x| x.express()) {
+            expr.apply_external_dependencies(&external_deps);
+            let refs = expr.get_references();
+            for def_name in refs.definitions.iter() {
+                variable_to_id.entry(def_name.clone()).or_insert_with(|| { highest_node_id += 1; highest_node_id });
+            }
+            for dep_name in refs.dependencies.iter() {
+                variable_to_id.entry(dep_name.clone()).or_insert_with(|| { highest_node_id += 1; highest_node_id });
+            }
+        }
+
+        // Build a Graph, where: 
+        //     - every variable that is defined or depended upon is a node
+        //     - every expression is a node, and its zero-based position in the expressions Vec is its node_id
+        //     - every variable definition is an outgoing edge from expression node to variable node
+        //     - every variable reference that is to an internal (not external) dependency is 
+        //       an incoming edge from variable to expression node
+        let mut graph = Graph::new(highest_node_id + 1);
+
+        for (expr_node_id, expr) in expressions.iter().map(|x| x.express()).enumerate() {
+            let refs = expr.get_references();
+            // Add the outgoing edges for definitions.
+            for def_name in refs.definitions.iter() {
+                let def_node_id = variable_to_id[def_name];
+                graph.add_edge(expr_node_id, def_node_id);
+            }
+            // Add the incoming edges for dependencies. 
+            for dep_name in refs.dependencies.iter() {
+                let dep_node_id = variable_to_id[dep_name];
+                graph.add_edge(dep_node_id, expr_node_id);
+            }
+        }
+        graph
+    }
 
     /// Given a list of expressions in an arbitrary order, **sort them topologically** 
     /// so that no Expression that relies upon a dependency
@@ -493,15 +575,33 @@ impl<'a> Expression<'a> {
     /// their applicability prologue will cause the evaluation to short-circuit and the definition not be performed.
     /// Thus an expression that depends upon a variable must wait until all expressions that might define that variable
     /// have been executed. 
-    pub fn untangle<'b, X>(mut expressions : Vec<X>) -> (Vec<X>, Vec<X>) 
+    pub fn untangle<'b, X>(mut exprs : Vec<X>) -> (Vec<Rc<X>>, Vec<Rc<X>>) 
     where X : Expressive<'b> {
-        let untangled = Vec::new();
-        let tangled = Vec::new();
+        let expression_count = exprs.len();
+        let mut untangled = Vec::with_capacity(expression_count);
+        let mut tangled = Vec::new();      
+        let graph : Graph;
+        {
+            let expressions = exprs.borrow_mut();
+            // Interpret the definition and use (dependency) of variables within expressions as relationships
+            // in a graph. Every expression becomes a node, as well as every variable. 
+            graph = Self::dependency_graph(expressions);
+        }
+        // Sort the graph topologically. 
+        let (sorted, unsorted) = graph.sort();
 
-        // let external_deps = References::infer_external_dependencies(&mut expressions);
-
-
-        // TODO: Implement untangle
+        // Reorder the expressions according to the topological sort. 
+        // Recognize that some of the node_ids in the solution correspond to variable names, which should be skipped. 
+        // If the node_id >= expressions.len() then it is a variable node.  
+        let expr_rc : Vec<Rc<X>> = exprs.into_iter().map(|x| Rc::new(x)).collect();
+        for expression_node_id in sorted.iter().filter(|node_id| **node_id < expression_count) {
+            // Transcribe Expressions from expr_rc to untangled via sorted.
+            untangled.push(expr_rc[*expression_node_id].clone());
+        }
+        for expression_node_id in unsorted.iter().filter(|node_id| **node_id < expression_count) {
+            // Transcribe Expressions from expr_rc to tangled via unsorted.
+            tangled.push(expr_rc[*expression_node_id].clone());
+        }
         (untangled, tangled)
     }
     

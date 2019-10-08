@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::iter::FromIterator;
 use std::fmt::*;
 
+#[derive(Clone)]
 /// A graph of nodes and directional edges represented using _adjacency lists_ that has no edge weights.
 /// Adjacency lists are suitable for sparse graphs, where the number of edges is much less than 
 /// the square of the number of nodes (i.e. vertices): 
@@ -37,6 +38,7 @@ impl Graph {
         }
     }
 
+    /// The number of nodes in the graph.
     pub fn node_count(&self) -> usize {
         self.outgoing_edges.len()
     }
@@ -69,6 +71,7 @@ impl Graph {
           };
     }
 
+    /// True if the node_id is not out of range and has at least one incoming edge from another node. 
     pub fn has_incoming_edges(&self, node_id : usize) -> bool {
         if node_id >= self.node_count() { return false; }
         match &self.incoming_edges[node_id] {
@@ -87,7 +90,7 @@ impl Graph {
     /// Returns a tuple with two `Vecs`. 
     /// 
     ///   - The first `Vec` holds ids of all the nodes that could be sorted, arranged in proper order.
-    ///   - The second `Vec` holds ids of all the nodes that could NOT be sorted.
+    ///   - The second `Vec` holds ids of all the nodes that could NOT be sorted, ascending by node_id.
     /// 
     /// __Cyclic or Acyclic__? If the second `Vec` returned is empty, it means the graph 
     /// is a __DAG__ (`directed acyclic graph`) and a complete topological sort was possible. 
@@ -149,7 +152,6 @@ impl Graph {
                     break;
                 }
             }
-            
             // Perform remove outside of loop to prevent modifying a collection while it is being iterated.
             if let Some(sortable_id) = dependency_id_to_remove {
                 sortable.push(sortable_id);
@@ -157,7 +159,6 @@ impl Graph {
                 forward_progress = true;
             }
         }
-    
         let unsortable = unsorted.iter().map(|i| *i).collect();
         (sortable, unsortable)
     }

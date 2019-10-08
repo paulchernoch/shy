@@ -93,6 +93,7 @@ pub struct Rule<'a> {
 
 impl<'a> Expressive<'a> for Rule<'a> {
     fn express(&self) -> &Expression<'a> { &self.expression }
+    fn express_mut(&mut self) -> &mut Expression<'a> { &mut self.expression }
 }
 
 
