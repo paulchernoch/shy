@@ -69,6 +69,14 @@ impl Graph {
           };
     }
 
+    pub fn has_incoming_edges(&self, node_id : usize) -> bool {
+        if node_id >= self.node_count() { return false; }
+        match &self.incoming_edges[node_id] {
+            Some(node_set) => node_set.len() > 0,
+            None => false
+        }
+    }
+
     /// Perform a __topological sort__ of the graph, if possible.
     /// This is akin to solving a scheduling problem, where no task
     /// may be performed until all dependent tasks have been completed. 
@@ -122,7 +130,7 @@ impl Graph {
             let mut dependency_id_to_remove = None;
             
             for dependency_id in unsorted.iter() {
-                if self.incoming_edges[*dependency_id].is_none() {
+                if !self.has_incoming_edges(*dependency_id) {
                     // The clone is needed, because remove_edge modifies outgoing_edges. 
                     if let Some(dependencies) = &self.outgoing_edges[*dependency_id] {
                         for dependent_id in dependencies.clone() {
@@ -147,7 +155,6 @@ impl Graph {
                 sortable.push(sortable_id);
                 unsorted.remove(&sortable_id);
                 forward_progress = true;
-                println!("Node Added to sort order: {}\n{:?}", sortable_id, self);
             }
         }
     
@@ -201,11 +208,28 @@ mod tests {
         graph.add_edge(2, 5);
         graph.add_edge(1, 3);
         graph.add_edge(3, 4);
-        println!("{:?}", graph);
         let (ordered, unordered) = graph.sort();
         asserting("Should be no unordered nodes").that(&unordered.len()).is_equal_to(0);
         let ordered_comparison = ordered.iter().eq(vec!(0,1,2,3,4,5,6).iter());
         asserting("Ordered node ids should be ascending").that(&ordered_comparison).is_equal_to(true);
+    }
+
+    #[test]
+    /// Perform topological sort of the nodes in a graph with a cycle, which should not find a solution.
+    pub fn topological_sort_with_cycle() {
+        let mut graph = Graph::new(7);
+        // Given the cycle 0-1-3-4-0, only 2, 5, and 6 should end up sortable.
+        graph.add_edge(2, 6);
+        graph.add_edge(2, 5);
+        graph.add_edge(1, 3);
+        graph.add_edge(3, 4);
+        graph.add_edge(4, 0);
+        graph.add_edge(0, 1);
+        let (ordered, unordered) = graph.sort();
+        let unordered_comparison = unordered.iter().eq(vec!(0,1,3,4).iter());
+        asserting("Unordered node ids should be 0,1,3,4").that(&unordered_comparison).is_equal_to(true);
+        let ordered_comparison = ordered.iter().eq(vec!(2,5,6).iter());
+        asserting("Ordered node ids should be 2,5,6").that(&ordered_comparison).is_equal_to(true);
     }
 
 }
