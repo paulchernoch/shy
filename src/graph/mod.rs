@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::collections::BTreeSet;
 use std::iter::FromIterator;
+use std::fmt::*;
 
 /// A graph of nodes and directional edges represented using _adjacency lists_ that has no edge weights.
 /// Adjacency lists are suitable for sparse graphs, where the number of edges is much less than 
@@ -146,11 +147,40 @@ impl Graph {
                 sortable.push(sortable_id);
                 unsorted.remove(&sortable_id);
                 forward_progress = true;
+                println!("Node Added to sort order: {}\n{:?}", sortable_id, self);
             }
         }
     
         let unsortable = unsorted.iter().map(|i| *i).collect();
         (sortable, unsortable)
+    }
+}
+
+impl Debug for Graph {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let mut s = String::new(); 
+        for node_id in 0..self.node_count() {
+            s.push_str("  (");
+            let mut first = true;
+            if let Some(entering_ids) = &self.incoming_edges[node_id] {
+                for entering in entering_ids.iter() {
+                    if !first { s.push(','); } 
+                    s.push_str(&format!("{}", *entering));
+                    first = false;
+                }
+            }
+            s.push_str(&format!(") -> {} -> (", node_id));
+            first = true;
+            if let Some(exiting_ids) = &self.outgoing_edges[node_id] {
+                for exiting in exiting_ids.iter() {
+                    if !first { s.push(','); } 
+                    s.push_str(&format!("{}", *exiting));
+                    first = false;
+                }
+            }
+            s.push_str(")\n");
+        }
+        write!(f, "Graph:\n{}", s)
     }
 }
 
@@ -171,6 +201,7 @@ mod tests {
         graph.add_edge(2, 5);
         graph.add_edge(1, 3);
         graph.add_edge(3, 4);
+        println!("{:?}", graph);
         let (ordered, unordered) = graph.sort();
         asserting("Should be no unordered nodes").that(&unordered.len()).is_equal_to(0);
         let ordered_comparison = ordered.iter().eq(vec!(0,1,2,3,4,5,6).iter());
