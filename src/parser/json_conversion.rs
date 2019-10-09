@@ -1,4 +1,4 @@
-use serde_json::{Value, Number};
+use serde_json::{Value, Number, Map};
 use super::shy_token::ShyValue;
 use super::shy_scalar::ShyScalar;
 
@@ -26,6 +26,8 @@ use super::shy_scalar::ShyScalar;
 
 impl From<&ShyScalar> for Value { 
     /// Create a Serde Value from a ShyScalar. 
+    /// Since Serde Values can only represent what is valid for JSON (e.g. no NaN values),
+    /// encode unsupported values as Value::Strings, often by prepending a string.
     fn from(s : &ShyScalar) -> Self { 
         match s {
             ShyScalar::Null => Value::Null,
@@ -48,8 +50,19 @@ impl From<&ShyValue> for Value {
             ShyValue::FunctionName(func_name) => Value::String(format!("FunctionName: {}", func_name)),
             ShyValue::PropertyChain(prop_chain) => Value::String(format!("PropertyChain: {}", prop_chain.join("."))),
             ShyValue::Variable(var_name) => Value::String(format!("Variable: {}", var_name)),
-            ShyValue::Object(_) => {
-                panic!("Conversion of ShyObjects not implemented yet!")
+            ShyValue::Object(shy_obj) => {
+                let deref = shy_obj.as_deref();
+                let property_count = deref.keys().count();
+                let mut serde_map : Map<String, Value> = Map::with_capacity(property_count);
+                for key in deref.keys() {
+                    match deref.get(&key) {
+                      Some(shy_value) => {
+                          serde_map.insert(key, shy_value.into());
+                      },
+                      None => panic!("key '{}' in ShyObject has no value", key)
+                    }
+                }
+                Value::Object(serde_map)
             }
         }
     }
