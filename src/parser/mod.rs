@@ -24,6 +24,7 @@ pub mod execution_context;
 use execution_context::ExecutionContext;
 
 pub mod shy_scalar;
+pub mod json_conversion;
 use shy_scalar::ShyScalar;
 
 pub mod shy_operator;
