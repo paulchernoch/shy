@@ -616,6 +616,7 @@ mod tests {
     #[allow(unused_imports)]
     use spectral::prelude::*;
 
+    use std::borrow::Borrow;
     use super::ShuntingYard;
 
     #[test]
@@ -637,9 +638,58 @@ mod tests {
         asserting("Dependencies match").that(&do_vecs_match(&expected_dependencies, &used.dependencies)).is_equal_to(true);
     }
 
+    #[test]
+    /// Test the untangle function, which sorts expressions so that no expression that expects a given variable to be defined
+    /// is evaluated before the expression that defines it. 
+    fn untangle() {
+        // These expressions cannot be evaluated in the order given. They must be "untangled". 
+        let expression_source = vec!(
+            "z = x + y",
+            "d = 2 * c - k",
+            "a = z / b; c = 10",
+            "x = 3; y = 9",
+            "k = 5",
+            "b = 2",
+            "42"
+        );
+        // Expected values
+        let a = 6;
+        let b = 2; 
+        let c = 10;
+        let d = 15;
+        let k = 5;
+        let x = 3;
+        let y = 9;
+        let z = 12;
+
+        let mut context = ExecutionContext::default();
+        let expressions : Vec<Expression> = expression_source.iter().map(|s| Expression::new(*s)).collect();
+        let (sorted, unsorted) = Expression::untangle(expressions);
+        asserting!("All expressions should be sortable").that(&unsorted).has_length(0);
+        for expr in sorted.iter().map(|expr_rc| { let x : &Expression = expr_rc.borrow(); x }) {
+            let _ = expr.exec(&mut context);
+        }
+        asserting("value of a").that(&variable_equals("a", a, &context)).is_equal_to(true);
+        asserting("value of b").that(&variable_equals("b", b, &context)).is_equal_to(true);
+        asserting("value of c").that(&variable_equals("c", c, &context)).is_equal_to(true);
+        asserting("value of d").that(&variable_equals("d", d, &context)).is_equal_to(true);
+        asserting("value of k").that(&variable_equals("k", k, &context)).is_equal_to(true);
+        asserting("value of x").that(&variable_equals("x", x, &context)).is_equal_to(true);
+        asserting("value of y").that(&variable_equals("y", y, &context)).is_equal_to(true);
+        asserting("value of z").that(&variable_equals("z", z, &context)).is_equal_to(true);
+    }
+
     fn do_vecs_match<T : PartialEq>(a : &Vec<T>, b : &Vec<T>) -> bool {
         let matching = a.iter().zip(b.iter()).filter(|&(a, b)| a == b).count();
         matching == a.len() && matching == b.len()
+    }
+
+    fn variable_equals(variable : &str, expected_value : i64, ctx : &ExecutionContext) -> bool {
+        match ctx.load(&variable.to_string()) {
+            Some(ShyValue::Scalar(ShyScalar::Integer(actual_value_int))) => expected_value == actual_value_int,
+            Some(ShyValue::Scalar(ShyScalar::Rational(actual_value_float))) => expected_value as f64 == actual_value_float,
+            _ => false
+        }
     }
 
 }
