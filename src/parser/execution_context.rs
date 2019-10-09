@@ -82,6 +82,34 @@ impl<'a> ExecutionContext<'a> {
                 _ => ShyValue::error("'if' function requires exactly three arguments".into())
             }
         })
+    }
+
+    /// Define a context function that checks if the first argument is null and has two behaviours, 
+    /// depending on whether it is called with one argument or true. 
+    ///   - If two arguments: 
+    ///     return the value of the first argument if it is not null, 
+    ///     or the value of the second argument if the first is null.
+    ///   - If one argument: 
+    ///     return true if the sole argument is null and false otherwise. 
+    /// 
+    /// The behavior for two arguments is similar to the SQL Server SQL function ISNULL. 
+    pub fn shy_isnull_func() -> ShyFunction<'a>
+    {
+        Ctx::shy_func(move |v| {
+            match v {
+                ShyValue::Vector(ref vect) if vect.len() == 1 => match vect[0] {
+                    ShyScalar::Null => true.into(),
+                    _ => false.into()
+                },
+                ShyValue::Vector(ref vect) if vect.len() == 2 => match vect[0] {
+                    ShyScalar::Null => ShyValue::Scalar(vect[1].clone()),
+                    _ => ShyValue::Scalar(vect[0].clone())
+                },
+                ShyValue::Scalar(ShyScalar::Null) => true.into(),
+                ShyValue::Scalar(_) => false.into(),
+                _ => ShyValue::error("'isnull' function requires one or two arguments".into())
+            }
+        })
     }    
 
     pub fn shy_voting_func(function_name : String, rule : VotingRule) -> ShyFunction<'a>
@@ -151,8 +179,9 @@ impl<'a> ExecutionContext<'a> {
         map.insert("is_sign_negative".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_sign_negative()));
         map.insert("is_sign_positive".to_string(), Ctx::shy_double_to_bool_func(|x| x.is_sign_positive()));
 
-        // The 'if' function
+        // The 'if' and 'isnull' functions
         map.insert("if".to_string(), Ctx::shy_if_func());
+        map.insert("isnull".to_string(), Ctx::shy_isnull_func());
 
         // Voting functions, that count how many true versus false values are among the arguments
         map.insert("none".into(), Ctx::shy_voting_func("none".into(), VotingRule::None));

@@ -95,6 +95,7 @@ const FALSE_STRING: &str = "False";
 impl PartialOrd for ShyValue {
 
     fn partial_cmp(&self, right_operand: &Self) -> Option<Ordering> {
+        if self.is_null() || right_operand.is_null() { return None; }
         let t = &TRUE_STRING.to_string();
         let f = &FALSE_STRING.to_string();
         match (self, right_operand) {
@@ -141,8 +142,9 @@ impl<'a> From<ParserToken> for ShyValue {
     fn from(parser_token: ParserToken) -> Self {
         match parser_token {
             ParserToken::Function(s) => ShyValue::FunctionName(s),
-            ParserToken::Identifier(ref s) if *s == "true"  => ShyValue::Scalar(ShyScalar::Boolean(true)),
-            ParserToken::Identifier(ref s) if *s == "false" => ShyValue::Scalar(ShyScalar::Boolean(false)),
+            ParserToken::Identifier(ref s) if s.to_lowercase() == "null"  => ShyValue::Scalar(ShyScalar::Null),
+            ParserToken::Identifier(ref s) if s.to_lowercase() == "true"  => ShyValue::Scalar(ShyScalar::Boolean(true)),
+            ParserToken::Identifier(ref s) if s.to_lowercase() == "false" => ShyValue::Scalar(ShyScalar::Boolean(false)),
             ParserToken::Identifier(s) => ShyValue::Variable(s),
             ParserToken::PropertyChain(s) => ShyValue::PropertyChain(s),
             ParserToken::Integer(s) => ShyValue::Scalar(ShyScalar::Integer(s.parse::<i64>().unwrap())),
@@ -177,6 +179,7 @@ impl ShyValue {
             ShyValue::PropertyChain(_) => "PropertyChain",
             ShyValue::Vector(_) => "Vector",
             ShyValue::Object(_) => "Object",
+            ShyValue::Scalar(ShyScalar::Null) => "Null",
             ShyValue::Scalar(ShyScalar::Boolean(_)) => "Boolean",
             ShyValue::Scalar(ShyScalar::Integer(_)) => "Integer",
             ShyValue::Scalar(ShyScalar::Rational(_)) => "Rational",
@@ -200,6 +203,13 @@ impl ShyValue {
     pub fn is_error(&self) -> bool {
         match self {
             ShyValue::Scalar(ShyScalar::Error(_)) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match self {
+            ShyValue::Scalar(ShyScalar::Null) => true,
             _ => false
         }
     }

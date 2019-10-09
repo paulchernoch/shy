@@ -8,6 +8,7 @@ use super::shy_token;
 /// or returned as results.
 #[derive(Clone, PartialEq, Debug)]
 pub enum ShyScalar {
+    Null,
     Boolean(bool),
     Integer(i64),
     Rational(f64),
@@ -25,6 +26,13 @@ impl ShyScalar {
             _ => false
         }
     }
+
+    pub fn is_null(&self) -> bool {
+        match self {
+            ShyScalar::Null => true,
+            _ => false
+        }
+    }
 }
 
 impl From<bool> for ShyScalar { fn from(b: bool) -> Self { ShyScalar::Boolean(b) } }
@@ -38,6 +46,7 @@ impl TryFrom<ShyScalar> for bool {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
+            ShyScalar::Null => Err("Cannot convert Null into a boolean"),
             ShyScalar::Error(_) => Err("Value is an error, not a boolean"),
             _ => Ok(value.is_truthy())
         }
@@ -48,6 +57,7 @@ impl TryFrom<ShyScalar> for i64 {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
+            ShyScalar::Null => Err("Cannot convert Null into an integer"),
             ShyScalar::Boolean(_) => Err("Value is a boolean, not an integer"),
             ShyScalar::Integer(i) => Ok(i),
             ShyScalar::Rational(r) => {
@@ -66,6 +76,7 @@ impl TryFrom<ShyScalar> for f64 {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
+            ShyScalar::Null => Err("Cannot convert Null into a floating point number"),
             ShyScalar::Boolean(_) => Err("Value is a boolean, not a floating point number"),
             ShyScalar::Integer(i) => Ok(i as f64),
             ShyScalar::Rational(r) => Ok(r),
@@ -79,6 +90,7 @@ impl TryFrom<ShyScalar> for String {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
+            ShyScalar::Null => Err("Cannot convert Null into a String"),
             ShyScalar::Boolean(true) => Ok("true".to_string()),
             ShyScalar::Boolean(false) => Ok("false".to_string()),
             ShyScalar::Integer(i) => Ok(i.to_string()),

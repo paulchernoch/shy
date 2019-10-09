@@ -708,6 +708,31 @@ mod tests {
     }
 
     #[test]
+    /// Verify that the "isnull" function works with two arguments.
+    fn exec_isnull_with_two_arguments() {
+        let mut ctx = ExecutionContext::default();
+        let expected: ShyValue = 42.into();
+        let expr = "x = NULL; answer = isnull(x, 42)";
+        execute_test_case(expr, &mut ctx, &expected, true); 
+        asserting("isnull function, two arguments")
+            .that(&ctx.load(&"answer".to_string()).unwrap())
+            .is_equal_to(&expected);
+    }
+
+    #[test]
+    /// Verify that the "isnull" function works with one argument.
+    fn exec_isnull_with_one_argument() {
+        let mut ctx = ExecutionContext::default();
+
+        let expected: ShyValue = true.into();
+        let expr = "x = NULL; answer = isnull(x)";
+        execute_test_case(expr, &mut ctx, &expected, true); 
+        asserting("isnull function, one argument")
+            .that(&ctx.load(&"answer".to_string()).unwrap())
+            .is_equal_to(&expected);
+    }
+
+    #[test]
     /// Verify that the `majority` function works.
     fn exec_majority() {
         let mut ctx = ExecutionContext::default();
