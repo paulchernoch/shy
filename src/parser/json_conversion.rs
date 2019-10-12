@@ -2,6 +2,8 @@ use serde_json::{Value, Number, Map};
 use super::shy_token::ShyValue;
 use super::shy_scalar::ShyScalar;
 
+use super::shy_object::ShyObject;
+
 //  Convert ShyValues to and from Value enums in the serde crate.
 //  Not all ShyValue variants can be expressed as a Value in serde, and vice versa.
 //  Here are the mappings for ShyScalar (to be stored in ShyValue::Scalar): 
@@ -27,7 +29,8 @@ use super::shy_scalar::ShyScalar;
 impl From<&ShyScalar> for Value { 
     /// Create a Serde Value from a ShyScalar. 
     /// Since Serde Values can only represent what is valid for JSON (e.g. no NaN values),
-    /// encode unsupported values as Value::Strings, often by prepending a string.
+    /// encode unsupported values as Value::Strings, often by prepending a suffix.
+    /// The reverse conversion will need to parse these strings out and reconstruct the proper ShyValue.
     fn from(s : &ShyScalar) -> Self { 
         match s {
             ShyScalar::Null => Value::Null,
@@ -68,4 +71,138 @@ impl From<&ShyValue> for Value {
     }
 }
 
+impl From<ShyValue> for Value {
+    fn from(v : ShyValue) -> Self {
+        (&v).into()
+    }
+}
 
+impl From<&Value> for ShyValue {
+    fn from(v : &Value) -> Self {
+        match v {
+            Value::Null => ShyValue::Scalar(ShyScalar::Null),
+            Value::Bool(b) => b.into(),
+            Value::String(s) => s.clone().into(),
+            Value::Number(ref n) if (*n).is_i64() => ShyValue::Scalar(ShyScalar::Integer(n.as_i64().unwrap())),
+            Value::Number(ref f) => ShyValue::Scalar(ShyScalar::Rational(f.as_f64().unwrap())),
+            Value::Array(a) => ShyValue::Vector(
+                a.iter()
+                .map(|item|
+                  match item {
+                      Value::Null => ShyScalar::Null,
+                      Value::Bool(b) => (*b).into(),
+                      Value::String(s) => s.clone().into(),
+                      Value::Number(ref n) if (*n).is_i64() => ShyScalar::Integer(n.as_i64().unwrap()),
+                      Value::Number(ref f) => ShyScalar::Rational(f.as_f64().unwrap()),
+                      _ => ShyScalar::Error("Unsupported type of scalar".into())
+                  })
+                .collect()
+            ),
+            Value::Object(o) => {
+                let shy_object = ShyObject::empty();
+                {
+                    let mut assoc = shy_object.as_deref_mut();
+                    for (key, value) in o {
+                        assoc.set(key, value.into());
+                    }
+                }
+                ShyValue::Object(shy_object)
+            }
+        }
+    }
+}
+
+impl From<Value> for ShyValue {
+    fn from(v : Value) -> Self {
+        (&v).into()
+    }
+}
+
+#[cfg(test)]
+/// Tests of the Json Conversions.
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[allow(unused_imports)]
+    use spectral::prelude::*;
+
+    #[test]
+    /// Test conversion from several ShyValue variants into Serde Values using the From/Into Traits.
+    fn shy_value_to_serde_value() {
+        let null_shy_value : ShyValue = ShyValue::Scalar(ShyScalar::Null);
+        let null_value : Value = null_shy_value.into();
+        asserting("null Value conversion")
+          .that(&(match null_value { Value::Null => true, _ => false }))
+          .is_equal_to(true);
+        
+        let bool_shy_value : ShyValue = true.into();
+        let bool_value : Value = bool_shy_value.into();
+        asserting("bool Value conversion")
+          .that(&(match bool_value { Value::Bool(true) => true, _ => false }))
+          .is_equal_to(true);
+        
+        let string_shy_value : ShyValue = "Shy".into();
+        let string_value : Value = string_shy_value.into();
+        asserting("string Value conversion")
+          .that(&(match string_value { Value::String(s) => s == "Shy".to_string(), _ => false }))
+          .is_equal_to(true);
+
+        let integer_shy_value : ShyValue = 99.into();
+        let integer_value : Value = integer_shy_value.into();
+        asserting("integer Value conversion")
+          .that(&(match integer_value { Value::Number(n) => n.as_i64().unwrap() == 99, _ => false }))
+          .is_equal_to(true);
+
+        let shy_object = ShyObject::empty();
+        {
+            let mut deref_shy_object = shy_object.as_deref_mut();
+            (*deref_shy_object).set("depth".into(), 1500.0.into());
+        }
+        let object_value : Value = ShyValue::Object(shy_object).into();
+        asserting("object Value conversion")
+          .that(&(
+              match object_value {
+                  Value::Object(map) => {
+                      if let Some(Value::Number(depth)) = map.get("depth".into()){
+                          depth.as_f64().unwrap() == 1500.0
+                      }
+                      else {
+                          false
+                      }
+                  },
+                  _ => false
+              })
+          )
+          .is_equal_to(true);
+
+    }
+
+    #[test]
+    fn serde_value_to_shy_value() {
+        let null_serde_value = Value::Null;
+        let null_shy_value : ShyValue = null_serde_value.into();
+        asserting("null Value conversion")
+          .that(&(match null_shy_value { ShyValue::Scalar(ShyScalar::Null) => true, _ => false }))
+          .is_equal_to(true);
+
+        let bool_serde_value = Value::Bool(true);
+        let bool_shy_value : ShyValue = bool_serde_value.into();
+        asserting("bool Value conversion")
+          .that(&(match bool_shy_value { ShyValue::Scalar(ShyScalar::Boolean(true)) => true, _ => false }))
+          .is_equal_to(true);
+  
+        let string_serde_value = Value::String("serde".into());
+        let string_shy_value : ShyValue = string_serde_value.into();
+        asserting("string Value conversion")
+          .that(&(match string_shy_value { ShyValue::Scalar(ShyScalar::String(s)) => s == "serde", _ => false }))
+          .is_equal_to(true);
+
+        let rational_serde_value : Value = Value::Number(Number::from_f64(3.5).unwrap());
+        let rational_shy_value : ShyValue = rational_serde_value.into();
+        asserting("rational Value conversion")
+          .that(&(match rational_shy_value { ShyValue::Scalar(ShyScalar::Rational(r)) => r == 3.5, _ => false }))
+          .is_equal_to(true);
+  
+    }
+}
