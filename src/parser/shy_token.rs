@@ -187,15 +187,21 @@ impl ShyValue {
             ShyValue::Scalar(ShyScalar::Error(_)) => "Error",
         }
     }
-
+ 
     pub fn empty() -> Self {
         ShyValue::Object(ShyObject::empty())
+    }
+
+    /// Create a PropertyChain from a delimited string, instead of a Vec<String>. 
+    pub fn property_chain(s : &str) -> Self {
+        ShyValue::PropertyChain(s.split(".").map(|s| s.to_string()).collect())
     }
 
     //..................................................................
 
     // Convenience methods that create or check error messages
 
+    /// Create a ShyValue that holds an error message.
     pub fn error(message: String) -> Self {
         ShyValue::Scalar(ShyScalar::Error(message))
     }

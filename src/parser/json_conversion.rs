@@ -1,3 +1,4 @@
+use std::f64;
 use serde_json::{Value, Number, Map};
 use super::shy_token::ShyValue;
 use super::shy_scalar::ShyScalar;
@@ -82,7 +83,16 @@ impl From<&Value> for ShyValue {
         match v {
             Value::Null => ShyValue::Scalar(ShyScalar::Null),
             Value::Bool(b) => b.into(),
+
+            // A Value::String may represent any of several ShyValue variants, so must be parsed. 
+            // The prefix (if any) usually determines which variant to create. 
+            Value::String(ref nan) if nan.to_lowercase() == "nan" => ShyValue::Scalar(f64::NAN.into()),
+            Value::String(ref err) if err.starts_with("Error: ") => ShyValue::error(err[7..].into()),
+            Value::String(ref func_name) if func_name.starts_with("FunctionName: ") => ShyValue::FunctionName(func_name[13..].into()),
+            Value::String(ref prop_chain) if prop_chain.starts_with("PropertyChain: ") => ShyValue::property_chain(prop_chain[15..].into()),
+            Value::String(ref variable) if variable.starts_with("Variable: ") => ShyValue::Variable(variable[10..].into()),
             Value::String(s) => s.clone().into(),
+
             Value::Number(ref n) if (*n).is_i64() => ShyValue::Scalar(ShyScalar::Integer(n.as_i64().unwrap())),
             Value::Number(ref f) => ShyValue::Scalar(ShyScalar::Rational(f.as_f64().unwrap())),
             Value::Array(a) => ShyValue::Vector(
@@ -203,6 +213,19 @@ mod tests {
         asserting("rational Value conversion")
           .that(&(match rational_shy_value { ShyValue::Scalar(ShyScalar::Rational(r)) => r == 3.5, _ => false }))
           .is_equal_to(true);
+
+        let error_serde_value : Value = Value::String("Error: You did something bad!".into());
+        let error_shy_value : ShyValue = error_serde_value.into();
+        asserting("error Value conversion")
+          .that(&(match error_shy_value { ShyValue::Scalar(ShyScalar::Error(err)) => err == "You did something bad!", _ => false }))
+          .is_equal_to(true);
+
+        let nan_serde_value : Value = Value::String("NaN".into());
+        let nan_shy_value : ShyValue = nan_serde_value.into();
+        asserting("NaN Value conversion")
+          .that(&(match nan_shy_value { ShyValue::Scalar(ShyScalar::Rational(r)) => r.is_nan(), _ => false }))
+          .is_equal_to(true);
+
   
     }
 }
