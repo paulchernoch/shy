@@ -90,7 +90,7 @@ impl TryFrom<ShyScalar> for String {
     type Error = &'static str;
     fn try_from(value: ShyScalar) -> Result<Self, Self::Error> {
         match value {
-            ShyScalar::Null => Err("Cannot convert Null into a String"),
+            ShyScalar::Null => Ok("null".to_string()),
             ShyScalar::Boolean(true) => Ok("true".to_string()),
             ShyScalar::Boolean(false) => Ok("false".to_string()),
             ShyScalar::Integer(i) => Ok(i.to_string()),

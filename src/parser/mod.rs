@@ -21,11 +21,9 @@ pub mod voting_rule;
 use associativity::Associativity;
 
 pub mod execution_context;
-use execution_context::ExecutionContext;
 
 pub mod shy_scalar;
 pub mod json_conversion;
-use shy_scalar::ShyScalar;
 
 pub mod shy_operator;
 use shy_operator::ShyOperator;
@@ -326,9 +324,10 @@ mod tests {
     use spectral::prelude::*;
 
     use super::shy_object::ShyObject;
+    use execution_context::ExecutionContext;
+    use shy_scalar::ShyScalar;
 
     use crate::cache::{ApproximateLRUCache, Cache};
-
 
 
     /// Verify that the tokens for "2 + 2" are correctly rearranged into infix order.

@@ -21,6 +21,7 @@ extern crate itertools;
 extern crate regex;
 
 use std::convert::TryInto;
+use std::env;
 
 #[macro_use]
 extern crate lazy_static;
@@ -35,13 +36,17 @@ mod parser;
 mod lexer;
 mod rule;
 mod graph;
+mod service;
+
 use parser::execution_context::ExecutionContext;
 // use parser::shy_scalar::ShyScalar;
 use parser::shy_token::ShyValue;
+use service::shy_service;
 
 #[allow(unused_imports)]
 use parser::ShuntingYard;
 
+/// Read-execute-print-loop - an terminal-based interactive formula executor.
 fn repl() {
     use std::io::{stdin,stdout,Write};
     let mut ctx = ExecutionContext::default();
@@ -84,8 +89,37 @@ fn repl() {
 
 }
 
-
+/// Main entry point for application. 
+/// 
+/// If no command line arguments are supplied (besides the application executable name),
+/// a REPL is started and the user can execute expressions
+/// at the command line and have them compiled and evaluated. 
+/// 
+/// If arguments are supplied: 
+/// 
+///  - cargo run repl
+///  - cargo run service <ip> <port>
+/// 
+/// The first syntax again runs the repl.
+/// 
+/// For the second syntax, a Web Service is started.
+///   - If ip and port are omitted, run the server at this ip address: 127.0.0.1:8088
+///   - If port is omitted, use port 8088. 
 fn main() {
-    repl();
+    let args: Vec<String> = env::args().collect();
+    if args.len() <= 1 || args[1] == "repl" {
+        repl();
+    }
+    else {
+        let mut ip = "127.0.0.1";
+        let mut port = "8088";
+        if args.len() >= 4 {
+            port = &args[3];
+        }
+        if args.len() >=3 {
+            ip = &args[2];
+        }
+        shy_service(ip, port);
+    }
 }
 
