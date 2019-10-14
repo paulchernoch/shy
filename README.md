@@ -14,14 +14,21 @@ This is the beginnings of an IOT Rules processing and alerting system. The goals
   - **Sensor rules**. The rules can access the sensor statistics to make judgments.
   - **Actions**. Passing rules can trigger the execution of alerting actions.
   - **Remote update**. If the application is running on an edge device, new rules can be sent to it remotely and hot-swapped with the previous rules.
+  - **RESTful Micro service**. The Rules engine can be executed as a REST service, caching sets of pre-compiled rules and executing them against a different context with each request.
 
 The following parts are in working order:
 
-  - Rule lexical analysis, parsing, and compilation
-  - Rule execution
-  - Rule caching
+  - Expression lexical analysis, parsing, and compilation
+  - Expression execution
+  - Expression caching
   - Creation of Context objects
+  - Execution of expressions against a context
+  - Converting to and from **serde-json** **Value** objects (as preparation for the serialization and deserialization of rules which will be needed to stand up a REST API server.)
 
-For an overview of the rule syntax and how to use the REPL to test expressions, see this file: 
+For an overview of the rule syntax and how to use the REPL to test expressions interactively, see this file: 
 
 [Shy Rule Syntax and Usage](./src/README.md)
+
+The Rules Server is not built yet. However, a first version of the REST API design is here:
+
+[REST API for Shy Rules Service](./src/service/README.md)

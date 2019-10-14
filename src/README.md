@@ -1,6 +1,6 @@
 # Shy - A Shunting Yard Rules Engine
 
-It is convenient for engineers unfamiliar with the programming language used to implement an application to still have a need to write rules that will be used in that application. If the formulas are embedded in the code, adding or editing them becomes tedious and error prone; it is better that they be stored in external text files in a simple format. Such formulas are usually expressed in infix notation, because that is how mathematics is normally notated. This library uses the **Shunting Yard** Algorithm to compile such expressions into a form convenient for execution. This algorithm was discovered by Edsger Dijkstra, a Dutch physicist and computer scientist. 
+It is convenient for engineers unfamiliar with the programming language used to implement an application to still have a need to write rules that will be used in that application. If the formulas are embedded in the code, adding or editing them becomes tedious and error prone; it is better that they be stored in external text files in a simple format. Such formulas are usually expressed in infix notation, because that is how mathematics is normally notated. This library uses the **Shunting Yard** Algorithm to compile such expressions into a form convenient for execution. This algorithm was discovered by **Edsger Dijkstra**, a Dutch physicist and computer scientist. 
 
 ## Modules
 
