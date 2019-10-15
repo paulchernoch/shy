@@ -57,7 +57,7 @@ The essential objects are:
 }
 ```
 
-2. Evaluate an expression with a context:
+2. Evaluate an expression with a context, but do not request for the updated context to be sent back:
 
   - Call: POST /expression/execute
   - JSON Request Body:
@@ -78,7 +78,7 @@ The essential objects are:
 }
 ```
 
-3. Evaluate an expression with a context, also return debugging information:
+3. Evaluate an expression with a context, request the updated context in the response, and also log debugging information:
 
   - JSON Request Body:
 
@@ -86,6 +86,7 @@ The essential objects are:
   "expression": "result = well.depth > 1500",
   "context" : { "depth": 2000 },
   "context_name" : "well",
+  "return_context" : true,
   "trace_on" : true
 }
 
@@ -94,9 +95,22 @@ The essential objects are:
 ```
 {
     "result": true,
-    "context": "Exec Context: {\"π\": Scalar(Rational(3.141592653589793)), \"φ\": Scalar(Rational(1.618033988749895)), \"e\": Scalar(Rational(2.718281828459045)), \"well\": Object(  {\n    depth: Scalar(Integer(2000))\n  }\n), \"PI\": Scalar(Rational(3.141592653589793)), \"PHI\": Scalar(Rational(1.618033988749895)), \"result\": Scalar(Boolean(true))}",
+    "context": {
+        "variables": {
+            "e": 2.718281828459045,
+            "well": {
+                "depth": 2000
+            },
+            "π": 3.141592653589793,
+            "PI": 3.141592653589793,
+            "φ": 1.618033988749895,
+            "result": true,
+            "PHI": 1.618033988749895
+        }
+    },
     "error": null
 }
 ```
 
-This case currently also logs the whole process of executing the expression to the console. (Eventually this will go to a log file.)
+This case currently logs the whole process of executing the expression to the console. 
+(Eventually this should go to a log file.)

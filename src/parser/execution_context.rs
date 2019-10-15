@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::f64;
 use std::fmt;
+use serde::{Serialize, Deserialize};
 
 use super::shy_scalar::ShyScalar;
 use super::shy_token::ShyValue;
@@ -14,9 +15,11 @@ use super::voting_rule::VotingRule;
 ///   - Some variables are loaded for use in the formulas.
 ///   - Some variables are used to store the results of formulas after execution. 
 ///   - The functions may be called in the expressions.
+#[derive(Serialize, Deserialize)]
 pub struct ExecutionContext<'a> {
     pub variables: HashMap<String, ShyValue>,
 
+    #[serde(skip)]
     functions: HashMap<String, ShyFunction<'a>>
 }
 

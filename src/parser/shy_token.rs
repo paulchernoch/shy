@@ -69,6 +69,8 @@ pub fn is_truthy(s: &str) -> bool {
 
 //..................................................................
 
+// Note: Serialize and Deserialize are manually implemented later in this file. 
+
 /// The Output stack of the Shunting Yard parser holds ShyValues wrapped inside a ShyToken.
 ///   - The final result of evaluating expressions is a single ShyValue, either a Scalar or a Vector.
 ///   - The Variable and FunctionName variants are intermediate tokens on the output stack that will be
