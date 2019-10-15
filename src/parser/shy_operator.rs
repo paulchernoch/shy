@@ -1,11 +1,14 @@
 
+use std::fmt::{Display,Formatter,Result};
+use serde::{Serialize, Deserialize};
 use super::associativity::Associativity;
 use crate::lexer::parser_token::ParserToken;
 
 //..................................................................
 
-custom_derive! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(ShyOperatorVariants), IterVariantNames(ShyOperatorVariantNames))]
+//custom_derive! {
+    //#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(ShyOperatorVariants), IterVariantNames(ShyOperatorVariantNames))]
+    #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq)]
     /// A ShyOperator represents a specific operator that may be applied to operands (ShyValues).
     /// Each ShyOperator has an operator precedence. 
     /// All operators are left associative, except the assignment operators, which are right associative.
@@ -66,6 +69,12 @@ custom_derive! {
         /// Operands are not operators - this is how the Operator parser tells the Operand parser (ShyValue) to kick in.
         Operand,
         Error
+    }
+//}
+
+impl Display for ShyOperator {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "{:?}", self)
     }
 }
 

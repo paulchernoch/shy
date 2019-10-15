@@ -32,10 +32,10 @@ extern crate spectral;
 extern crate rand;
 
 mod cache;
-mod parser;
-mod lexer;
-mod rule;
 mod graph;
+mod lexer;
+mod parser;
+mod rule;
 mod service;
 
 use parser::execution_context::ExecutionContext;

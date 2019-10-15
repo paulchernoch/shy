@@ -31,8 +31,7 @@ The essential objects are:
 | Get Ruleset                | GET /rulesets/{name}           | N/A                 |
 | Update Ruleset             | POST /rulesets/{name}          | Partial Ruleset     |
 | Delete Ruleset             | DELETE /rulesets/{name}        | N/A                 |
-| Execute Expression         | POST /execute/expression       | Expression          |
-| Exec Expr wi Context       | POST /execute/context/         | Expression, Context |
-| Exec Ruleset wi Context    | POST /execute/rulesets/{name}  | Context             |
+| Execute Expression         | POST /expression/execute       | Expression, Context |
+| Exec Ruleset               | POST /rulesets/{name}/execute  | Context             |
 
 

@@ -1,4 +1,4 @@
-
+use serde::{Serialize, Deserialize};
 use crate::parser::expression::Expression;
 use crate::parser::expression::Expressive;
 
@@ -6,17 +6,18 @@ use crate::parser::execution_context::ExecutionContext;
 use crate::parser::shy_token::ShyValue;
 use crate::parser::shy_scalar::ShyScalar;
 
-custom_derive! {
-#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumDisplay, EnumFromStr, IterVariants(RuleTypeVariants), IterVariantNames(RuleTypeVariantNames))]
-  pub enum RuleType {
-      /// Indicates that the rule defines one or more properties. 
-      /// It may return a boolean or a value of any supported type. 
-      Property,
 
-      /// Indicates that the Rule returns a boolean and is a pass/fail rule. 
-      Predicate
-  }
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+/// Indicates the type of a Rule.
+pub enum RuleType {
+    /// Indicates that the rule defines one or more properties. 
+    /// It may return a boolean or a value of any supported type. 
+    Property,
+
+    /// Indicates that the Rule returns a boolean and is a pass/fail rule. 
+    Predicate
 }
+
 
 /// A Rule for use in a rule engine. 
 /// 
@@ -32,6 +33,7 @@ custom_derive! {
 ///   - rule.type
 ///   - rule.category
 ///   - rule.sequence
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Rule<'a> {
     /// Name of rule.
     /// 
@@ -65,9 +67,7 @@ pub struct Rule<'a> {
     /// Required expression to be evaluated for this rule.
     ///
     /// The expression should return a boolean for Predicate type rules, but may return any value for Property type rules. 
-    expression : Expression<'a>,
-
-
+    expression : Expression<'a>
 }
 
 impl<'a> Expressive<'a> for Rule<'a> {

@@ -1,12 +1,13 @@
 
 use std::convert::TryFrom;
+use serde::{Serialize, Deserialize};
 use super::shy_token;
 
 //..................................................................
 
 /// ShyScalars are the atomic values that can be used as operands to operators and arguments to functions,
 /// or returned as results.
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ShyScalar {
     Null,
     Boolean(bool),

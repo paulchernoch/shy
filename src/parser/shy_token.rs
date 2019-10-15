@@ -10,6 +10,9 @@ use std::collections::HashSet;
 use std::cmp::Ordering;
 use regex::Regex;
 
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde_json::{Value};
+
 use super::factorial::factorial;
 use super::factorial::factorial_approx;
 use super::shy_operator::ShyOperator;
@@ -158,6 +161,26 @@ impl<'a> From<ParserToken> for ShyValue {
             ParserToken::Regex(s) => ShyValue::Scalar(ShyScalar::String(s)),
             _ => ShyValue::error(format!("Error parsing token '{}'", parser_token))
         }
+    }
+}
+
+impl Serialize for ShyValue {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Value::from(self).serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ShyValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // TODO: Error handling
+        let value: Value = Deserialize::deserialize(deserializer)?;
+        Ok(value.into())
     }
 }
 
@@ -1010,7 +1033,7 @@ impl From<&str> for ShyValue { fn from(s: &str) -> Self { ShyValue::Scalar(ShySc
 ///   - The None value is for error processing.
 ///   - The OperatorWithValue (used for Functions and Power) will be split into 
 ///     a Value token (the Function name) and an Operator token (the function invocation).
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ShyToken{
     Value(ShyValue),
     Operator(ShyOperator),

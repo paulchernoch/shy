@@ -14,6 +14,7 @@ regex = "1"
 # objekt-clonable = { git = "https://github.com/kardeiz/objekt-clonable" }
 # objekt = { git = "https://github.com/dtolnay/objekt" }
 rand = "0.7.2"
+serde = "1.0"
 serde_json = "1.0.41"
 actix-web = "1.0"
 
