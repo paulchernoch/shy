@@ -22,13 +22,16 @@ The following parts are in working order:
   - Expression execution
   - Expression caching
   - Creation of Context objects
-  - Execution of expressions against a context
+  - Execution of expressions against a context in a command line REPL
   - Converting to and from **serde-json** **Value** objects (as preparation for the serialization and deserialization of rules which will be needed to stand up a REST API server.)
+  - Starting a Web Service and 
 
-For an overview of the rule syntax and how to use the REPL to test expressions interactively, see this file: 
+For an overview of the rule syntax and how to use the REPL to test expressions interactively (without a Web Service), see this file: 
 
 [Shy Rule Syntax and Usage](./src/README.md)
 
-The Rules Server is not built yet. However, a first version of the REST API design is here:
+To operate the Web Server and learn the REST API to its commands, read this:
 
 [REST API for Shy Rules Service](./src/service/README.md)
+
+(Note: At this time, only one route of the Web Service is functional: "/expression/execute".)

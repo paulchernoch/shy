@@ -1,6 +1,6 @@
 # Shy Web Service Restful API
 
-The Shy Web Service presents a **REST API** interface to its functionality. It holds a cache of Rulesets, which may be _added_, _retrieved_, _updated_, _deleted_, and _executed_.
+The Shy Web Service presents a **REST API** interface to its functionality. It holds a cache of **Rulesets**, which may be _added_, _retrieved_, _updated_, _deleted_, and _executed_.
 
 The essential objects are:
 
@@ -9,6 +9,21 @@ The essential objects are:
   - **Expression** - An unnamed formula which may be in the form of source text or compiled form.
   - **Context** - Data with properties. A Context may be used as the source of variables whose values are needed as inputs when evaluating Expressions and Rules. A Context may also serve as the target for results to be written.
   - **Service Cache** - Holds compiled **Rulesets**, which may be reused in subsequent calls.
+
+## Starting the Web Service
+
+Run the following command to start the Web Service on the default IP address of 127.0.0.1:8088:
+
+```
+    > cargo run service
+```
+
+To change the IP address and port:
+
+```
+    > cargo run service <ip-address> <port>
+```
+  
 
 ## REST Commands
 
@@ -34,6 +49,11 @@ The essential objects are:
 | Execute Expression         | POST /expression/execute       | Expression, Context |
 | Exec Ruleset               | POST /rulesets/{name}/execute  | Context             |
 
+NOTE: At this time, only one route is supported: 
+
+  - **/expression/execute**
+  
+This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
 ## Examples
 
