@@ -35,3 +35,68 @@ The essential objects are:
 | Exec Ruleset               | POST /rulesets/{name}/execute  | Context             |
 
 
+## Examples
+
+1. Evaluate an expression without a context:
+
+  - Call: POST /expression/execute
+  - JSON Request Body:
+
+```
+{
+  "expression": "r = 5; area = π * r²"
+}
+```
+  - Response:
+
+```
+{
+    "result": 78.53981633974483,
+    "context": null,
+    "error": null
+}
+```
+
+2. Evaluate an expression with a context:
+
+  - Call: POST /expression/execute
+  - JSON Request Body:
+
+{
+  "expression": "result = well.depth > 1500",
+  "context" : { "depth": 2000 },
+  "context_name" : "well"
+}
+
+  - Response:
+
+```
+{
+    "result": true,
+    "context": null,
+    "error": null
+}
+```
+
+3. Evaluate an expression with a context, also return debugging information:
+
+  - JSON Request Body:
+
+{
+  "expression": "result = well.depth > 1500",
+  "context" : { "depth": 2000 },
+  "context_name" : "well",
+  "trace_on" : true
+}
+
+  - Response:
+
+```
+{
+    "result": true,
+    "context": "Exec Context: {\"π\": Scalar(Rational(3.141592653589793)), \"φ\": Scalar(Rational(1.618033988749895)), \"e\": Scalar(Rational(2.718281828459045)), \"well\": Object(  {\n    depth: Scalar(Integer(2000))\n  }\n), \"PI\": Scalar(Rational(3.141592653589793)), \"PHI\": Scalar(Rational(1.618033988749895)), \"result\": Scalar(Boolean(true))}",
+    "error": null
+}
+```
+
+This case currently also logs the whole process of executing the expression to the console. (Eventually this will go to a log file.)

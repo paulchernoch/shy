@@ -42,6 +42,12 @@ fn expression_execute(req: web::Json<ExpressionExecuteRequest>) -> HttpResponse 
     let result = 
         match shy.compile() {
             Ok(mut expr) => {
+                match &req.context {
+                    Some(value) => {
+                        ctx.store(&req.context_name, value);
+                    },
+                    None => ()
+                }
                 let exec_result = 
                     if req.trace_on { expr.trace(ctx) }
                     else { expr.exec(ctx) };
