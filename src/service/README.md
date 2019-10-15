@@ -57,7 +57,7 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 
 ## Examples
 
-1. Evaluate an expression without a context:
+1. **Evaluate an expression without a context**:
 
   - Call: POST /expression/execute
   - JSON Request Body:
@@ -77,16 +77,18 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 }
 ```
 
-2. Evaluate an expression with a context, but do not request for the updated context to be sent back:
+2. **Evaluate an expression with a context**, but do not request for the updated context to be sent back:
 
   - Call: POST /expression/execute
   - JSON Request Body:
 
+```
 {
   "expression": "result = well.depth > 1500",
   "context" : { "depth": 2000 },
   "context_name" : "well"
 }
+```
 
   - Response:
 
@@ -98,7 +100,7 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 }
 ```
 
-3. Evaluate an expression with a context, request the updated context in the response, and also log debugging information:
+3. **Evaluate an expression with a context, request the updated context in the response**, and also log debugging information:
 
   - JSON Request Body:
 
