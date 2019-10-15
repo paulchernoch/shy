@@ -82,6 +82,7 @@ The essential objects are:
 
   - JSON Request Body:
 
+```
 {
   "expression": "result = well.depth > 1500",
   "context" : { "depth": 2000 },
@@ -89,6 +90,7 @@ The essential objects are:
   "return_context" : true,
   "trace_on" : true
 }
+```
 
   - Response:
 
