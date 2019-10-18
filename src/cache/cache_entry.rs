@@ -1,4 +1,5 @@
-use std::rc::Rc;
+use std::sync::Arc;
+// use std::rc::Rc;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::time::{SystemTime, Duration};
@@ -10,9 +11,9 @@ pub struct CacheEntry<K,V>
     where K: Eq + Hash + PartialEq + Debug + Clone,
           V: Clone {
     /// Key for the item
-    pub key : Rc<K>,
+    pub key : Arc<K>,
     /// Item being stored in the cache
-    value : Rc<V>,
+    value : Arc<V>,
     /// Number of accesses of any key from the creation of the cache up until the last time this key was accessed
     /// The higher the number, the more recently the item was accessed (relative to other items).
     access_sequence : u64,
@@ -36,7 +37,7 @@ impl<K,V> CacheEntry<K,V>
     /// Constructs a new `CacheEntry`.
     /// The `access_sequence` is a sequential measure of when this entry was created relative to others.
     /// The lower the `access_sequence`, the less recently used was the item.  
-    pub fn new(key : Rc<K>, value : Rc<V>, access_sequence : u64) -> Self {
+    pub fn new(key : Arc<K>, value : Arc<V>, access_sequence : u64) -> Self {
         CacheEntry {
             key,
             value,
@@ -56,7 +57,7 @@ impl<K,V> CacheEntry<K,V>
     /// Replaces the item stored in the `CacheEntry` with a new item, resetting the time `created` to now,
     /// and making the `access_sequence` current. The `access_count` is incremented - not reset, 
     /// even though the object is new.  
-    pub fn replace(&mut self, new_value : &Rc<V>, new_access_sequence : u64) {
+    pub fn replace(&mut self, new_value : &Arc<V>, new_access_sequence : u64) {
         self.access_count += 1;
         self.access_sequence = new_access_sequence;
         self.value = new_value.clone();

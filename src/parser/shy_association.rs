@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::cell::RefCell;
-use std::rc::Rc;
+// use std::cell::RefCell;
+// use std::rc::Rc;
+use std::sync::{Arc,RwLock};
 use itertools::sorted;
 use super::shy_token::ShyValue;
 use super::indent::IndentDisplay;
@@ -35,8 +36,8 @@ pub trait ShyAssociation {
     /// Compare two ShyAssociation for equality.
     fn equals_association(&self, other: &dyn ShyAssociation) -> bool;
 
-    /// Create a deep copy of the ShyAssociation and box it up in an Rc and RefCell, to preserve interior mutability.
-    fn clone_association(&self) -> Rc<RefCell<dyn ShyAssociation>>;
+    /// Create a deep copy of the ShyAssociation and box it up in an Ar and RwLock, to preserve interior mutability.
+    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation>>;
 
     /// Supports the writing of a Debug formatter
     fn to_indented_string<'a>(&self, indent_by: usize, tab_size: usize) -> String;
@@ -83,8 +84,8 @@ impl ShyAssociation for HashMap<String, ShyValue> {
             .map_or(false, |a| self == a)
     }
 
-    fn clone_association(&self) -> Rc<RefCell<dyn ShyAssociation>> {
-        Rc::new(RefCell::new(self.clone()))
+    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation>> {
+        Arc::new(RwLock::new(self.clone()))
     }
 
     /// Format the key-value pairs as a string, indenting the given number of spaces

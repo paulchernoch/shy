@@ -31,6 +31,7 @@ use shy_operator::ShyOperator;
 pub mod shy_association;
 pub mod shy_object;
 pub mod expression;
+pub mod references;
 use expression::Expression;
 
 

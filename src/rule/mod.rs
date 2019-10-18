@@ -6,8 +6,10 @@ use crate::parser::execution_context::ExecutionContext;
 use crate::parser::shy_token::ShyValue;
 use crate::parser::shy_scalar::ShyScalar;
 
+pub mod ruleset;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Indicates the type of a Rule.
 pub enum RuleType {
     /// Indicates that the rule defines one or more properties. 
@@ -33,7 +35,7 @@ pub enum RuleType {
 ///   - rule.type
 ///   - rule.category
 ///   - rule.sequence
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rule<'a> {
     /// Name of rule.
     /// 

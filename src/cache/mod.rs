@@ -1,4 +1,5 @@
-use std::rc::Rc;
+// use std::rc::Rc;
+use std::sync::Arc;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::collections::HashMap;
@@ -202,7 +203,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     entries : Vec<Option<CacheEntry<K,V>>>,
 
     /// For each cache key, associates a position in the entries buffer as part of a bi-directional index. 
-    position_for_key : HashMap<Rc<K>, usize>,
+    position_for_key : HashMap<Arc<K>, usize>,
 
     /// Useful Statistics about cache usage.
     info : CacheInfo,
@@ -349,13 +350,13 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
             // we assign unique values for each entry.
             self.info.access_count += 1;
         }
-        let rc_key = Rc::new(key.clone());
+        let rc_key = Arc::new(key.clone());
         match self.position_for_key.get(&rc_key) {
             Some(position) => {
                 // Replace existing value with a new value. 
                 match &mut self.entries[*position] {
                     Some(entry) => {
-                        entry.replace(&Rc::new(value.clone()), self.info.access_count);
+                        entry.replace(&Arc::new(value.clone()), self.info.access_count);
                         false
                     },
                     None => {
@@ -365,10 +366,10 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
             },
             None => {
                 // Evict an entry (if necessary), then add a new entry to the end.
-                // The Rc's are handled such that the key points to the same underlying key object
+                // The Arc's are handled such that the key points to the same underlying key object
                 // in both the CacheEntry in the entries Vec and the HashMap position_for_key.
                 self.evict_if_full();
-                self.entries[self.info.size] = Some(CacheEntry::new(rc_key.clone(), Rc::new(value.clone()), self.info.access_count));
+                self.entries[self.info.size] = Some(CacheEntry::new(rc_key.clone(), Arc::new(value.clone()), self.info.access_count));
                 self.position_for_key.insert(rc_key, self.info.size);
                 self.info.size += 1;
                 true
@@ -377,7 +378,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     }
 
     fn get(&mut self, key : &K) -> Option<(V,SystemTime)> {
-        match self.position_for_key.get(&Rc::new(key.clone())) {
+        match self.position_for_key.get(&Arc::new(key.clone())) {
             Some(index) => {
                 match &mut self.entries[*index] {
                     Some(entry) => {
@@ -403,7 +404,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     fn get_info_mut(&mut self) -> &mut CacheInfo {  &mut self.info }
 
     fn remove(&mut self, key : &K) -> bool {
-        let rc_key = &Rc::new(key.clone());
+        let rc_key = &Arc::new(key.clone());
         let removed = match self.position_for_key.get(rc_key) {
             Some(index) => {
                 let size_before_remove = self.size();

@@ -1,11 +1,12 @@
-
-use actix_web::{get, App, HttpResponse, HttpServer, Responder};
+use std::sync::RwLock;
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 pub mod request;
 pub mod routes;
+pub mod service_state;
 
 use routes::expression_execute;
-
+use service_state::ServiceState;
 
 // ........................................................................
 //      Simple API Endpoint Functions
@@ -15,8 +16,10 @@ const SERVICE_NAME : &str = "Shy Rules Engine";
 const SERVICE_VERSION : &str  = "0.1";
 
 #[get("/")]
-fn index() -> impl Responder {
-    HttpResponse::Ok().body(format!("{} version {}", SERVICE_NAME, SERVICE_VERSION))
+fn index(data: web::Data<RwLock<ServiceState>>) -> impl Responder {
+    let mut state = data.write().unwrap();
+    state.request_counter += 1;
+    HttpResponse::Ok().body(format!("{} version {}. {} requests received since service started.", SERVICE_NAME, SERVICE_VERSION, state.request_counter))
 }
 
 
@@ -26,15 +29,20 @@ fn index() -> impl Responder {
 /// Start the Shy Rules Engine REST Service
 /// 
 /// Every call to "service" sets up a route handler. 
-pub fn shy_service(ip : &str, port : &str) {
-    HttpServer::new(|| {
-        App::new()
-            .service(index)
-            .service(expression_execute::route)
-    })
-    .bind(format!("{}:{}", ip, port))
-    .unwrap()
-    .run()
-    .unwrap();
+pub fn shy_service<'a>(ip : &str, port : &str) {
+    let service_data = web::Data::new(ServiceState::new(20000));
+    {
+        println!("{} version {} running on {}:{}", SERVICE_NAME, SERVICE_VERSION, ip, port);
+        HttpServer::new(move || {
+            App::new()
+                .register_data(service_data.clone())
+                .service(index)
+                .service(expression_execute::route)
+        })
+        .bind(format!("{}:{}", ip, port))
+        .unwrap()
+        .run()
+        .unwrap();
+    }
 }
 

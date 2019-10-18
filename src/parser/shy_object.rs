@@ -1,6 +1,7 @@
 
-use std::rc::Rc;
-use std::cell::RefCell;
+// use std::rc::Rc;
+// use std::cell::RefCell;
+use std::sync::{Arc,RwLock};
 use std::fmt::*;
 use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
@@ -10,7 +11,7 @@ use super::shy_token::ShyValue;
 
 /// A Holder for a ShyAssociation that permits the implementation of Clone, PartialEq, and Debug for a Trait object.
 pub struct ShyObject {
-    pub association: Rc<RefCell<dyn ShyAssociation>>
+    pub association: Arc<RwLock<dyn ShyAssociation>>
 }
 
 impl ShyObject {
@@ -21,8 +22,8 @@ impl ShyObject {
         }
     }
 
-    /// Create a new ShyObject that contains a clone of the given Rc, ensuring that the underlying ShyAssociation is NOT cloned.
-    pub fn share(wrapped: Rc<RefCell<dyn ShyAssociation>>) -> ShyObject {
+    /// Create a new ShyObject that contains a clone of the given Arc, ensuring that the underlying ShyAssociation is NOT cloned.
+    pub fn share(wrapped: Arc<RwLock<dyn ShyAssociation>>) -> ShyObject {
         ShyObject {
             association: wrapped.clone()
         }
@@ -30,11 +31,11 @@ impl ShyObject {
 
     pub fn empty() -> ShyObject {
         ShyObject {
-            association: Rc::new(RefCell::new(HashMap::new()))
+            association: Arc::new(RwLock::new(HashMap::new()))
         }
     }
 
-    /// Create a shallow clone of this ShyObject that has a new Rc that points to the same RefCell and hence the same ShyAssociation.
+    /// Create a shallow clone of this ShyObject that has a new Arc that points to the same RwLock and hence the same ShyAssociation.
     pub fn shallow_clone(&self) -> ShyObject {
         ShyObject {
             association: self.association.clone()
@@ -42,11 +43,11 @@ impl ShyObject {
     }
 
     pub fn as_deref(&self) -> impl Deref<Target = dyn ShyAssociation> {
-        self.association.borrow()
+        self.association.read().unwrap()
     }
 
     pub fn as_deref_mut(&self) -> impl DerefMut<Target = dyn ShyAssociation> {
-        self.association.borrow_mut()
+        self.association.write().unwrap()
     }
 
     /// Follow a path from the given ShyObject down to one of its descendants and retrieve that descendant as an Option.
@@ -90,21 +91,21 @@ impl ShyObject {
 impl Clone for ShyObject {
     fn clone(&self) -> Self {
         ShyObject {
-            association: self.association.borrow().clone_association()
+            association: self.association.read().unwrap().clone_association()
         }
     }
 }
 
 impl PartialEq for ShyObject {
     fn eq(&self, other: &ShyObject) -> bool {
-        let other_assoc: &dyn ShyAssociation = &*other.association.borrow();
-        self.association.borrow().equals_association(other_assoc)
+        let other_assoc: &dyn ShyAssociation = &*other.association.read().unwrap();
+        self.association.read().unwrap().equals_association(other_assoc)
     }
 }
 
 impl Debug for ShyObject {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "{}", self.association.borrow().to_indented_string(2, 2))
+        write!(f, "{}", self.association.read().unwrap().to_indented_string(2, 2))
     }
 }
 
@@ -124,7 +125,7 @@ mod tests {
         set_into(&mut dictionary1, "name", "The Doctor");
         set_into(&mut dictionary1, "season", 12);
         set_into(&mut dictionary1, "popular", true);
-        let wrapped: Rc<RefCell<dyn ShyAssociation>> = Rc::new(RefCell::new(dictionary1));
+        let wrapped: Arc<RwLock<dyn ShyAssociation>> = Arc::new(RwLock::new(dictionary1));
         let shy_obj = ShyObject::share(wrapped);
         let deref = shy_obj.as_deref();
         let actual = deref.get("name");
@@ -134,7 +135,7 @@ mod tests {
 
     #[test]
     fn vivify() {
-        let mut shy_obj = ShyObject::share(Rc::new(RefCell::new(HashMap::new())));
+        let mut shy_obj = ShyObject::share(Arc::new(RwLock::new(HashMap::new())));
         let shy_value = ShyValue::Object(shy_obj.shallow_clone());
         let expected_qty = 3;
 

@@ -59,7 +59,7 @@ fn route(req: web::Json<ExpressionExecuteRequest>) -> HttpResponse {
         }
     };
     
-    if response.has_error() {
+    if !response.has_error() {
         HttpResponse::Ok().json(response)
     }
     else {
