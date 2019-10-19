@@ -7,6 +7,7 @@ pub mod service_state;
 
 use routes::expression_execute;
 use service_state::ServiceState;
+use crate::cache::Cache;
 
 // ........................................................................
 //      Simple API Endpoint Functions
@@ -19,7 +20,9 @@ const SERVICE_VERSION : &str  = "0.1";
 fn index(data: web::Data<RwLock<ServiceState>>) -> impl Responder {
     let mut state = data.write().unwrap();
     state.tally();
-    HttpResponse::Ok().body(format!("{} version {}. {} requests received since service started.", SERVICE_NAME, SERVICE_VERSION, state.request_counter))
+    let plural = if state.request_counter == 1 { "" } else { "s" };
+    HttpResponse::Ok().body(format!("{} version {}. \n{} request{} received since service started.\nRulesets in cache: {}", 
+    SERVICE_NAME, SERVICE_VERSION, state.request_counter, plural, state.ruleset_cache.size()))
 }
 
 
