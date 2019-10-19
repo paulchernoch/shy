@@ -1,10 +1,11 @@
-
+use std::sync::RwLock;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use actix_web::{post, web, HttpResponse};
 use crate::parser::execution_context::ExecutionContext;
 use crate::parser::ShuntingYard;
 use super::super::request::ExpressionExecuteRequest;
+use super::super::service_state::ServiceState;
 
 // ........................................................................
 
@@ -30,7 +31,9 @@ impl<'a> ExpressionResponse<'a> {
 
 /// Route handler for /expression/execute. 
 #[post("/expression/execute")]
-fn route(req: web::Json<ExpressionExecuteRequest>) -> HttpResponse {
+fn route((req, data): (web::Json<ExpressionExecuteRequest>, web::Data<RwLock<ServiceState>>)) -> HttpResponse {
+    let mut state = data.write().unwrap();
+    state.tally();
     let mut response = ExpressionResponse::new();
     let shy: ShuntingYard = req.expression.clone().into();
     response.context = Some(ExecutionContext::default());

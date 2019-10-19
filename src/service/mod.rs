@@ -18,7 +18,7 @@ const SERVICE_VERSION : &str  = "0.1";
 #[get("/")]
 fn index(data: web::Data<RwLock<ServiceState>>) -> impl Responder {
     let mut state = data.write().unwrap();
-    state.request_counter += 1;
+    state.tally();
     HttpResponse::Ok().body(format!("{} version {}. {} requests received since service started.", SERVICE_NAME, SERVICE_VERSION, state.request_counter))
 }
 

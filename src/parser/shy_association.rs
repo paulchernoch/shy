@@ -37,7 +37,7 @@ pub trait ShyAssociation {
     fn equals_association(&self, other: &dyn ShyAssociation) -> bool;
 
     /// Create a deep copy of the ShyAssociation and box it up in an Ar and RwLock, to preserve interior mutability.
-    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation>>;
+    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation + Send + Sync>>;
 
     /// Supports the writing of a Debug formatter
     fn to_indented_string<'a>(&self, indent_by: usize, tab_size: usize) -> String;
@@ -84,7 +84,7 @@ impl ShyAssociation for HashMap<String, ShyValue> {
             .map_or(false, |a| self == a)
     }
 
-    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation>> {
+    fn clone_association(&self) -> Arc<RwLock<dyn ShyAssociation + Send + Sync>> {
         Arc::new(RwLock::new(self.clone()))
     }
 

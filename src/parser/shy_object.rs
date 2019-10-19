@@ -11,19 +11,19 @@ use super::shy_token::ShyValue;
 
 /// A Holder for a ShyAssociation that permits the implementation of Clone, PartialEq, and Debug for a Trait object.
 pub struct ShyObject {
-    pub association: Arc<RwLock<dyn ShyAssociation>>
+    pub association: Arc<RwLock<dyn ShyAssociation + Send + Sync>>
 }
 
 impl ShyObject {
     /// Create a new ShyObject that contains a clone of the given ShyAssociation.
-    pub fn new<A : ShyAssociation>(value: &A) -> ShyObject {
+    pub fn new<A : ShyAssociation + Send + Sync>(value: &A) -> ShyObject {
         ShyObject {
             association: value.clone_association()
         }
     }
 
     /// Create a new ShyObject that contains a clone of the given Arc, ensuring that the underlying ShyAssociation is NOT cloned.
-    pub fn share(wrapped: Arc<RwLock<dyn ShyAssociation>>) -> ShyObject {
+    pub fn share(wrapped: Arc<RwLock<dyn ShyAssociation + Send + Sync>>) -> ShyObject {
         ShyObject {
             association: wrapped.clone()
         }
@@ -42,11 +42,11 @@ impl ShyObject {
         }
     }
 
-    pub fn as_deref(&self) -> impl Deref<Target = dyn ShyAssociation> {
+    pub fn as_deref(&self) -> impl Deref<Target = dyn ShyAssociation + Send + Sync> {
         self.association.read().unwrap()
     }
 
-    pub fn as_deref_mut(&self) -> impl DerefMut<Target = dyn ShyAssociation> {
+    pub fn as_deref_mut(&self) -> impl DerefMut<Target = dyn ShyAssociation + Send + Sync> {
         self.association.write().unwrap()
     }
 
@@ -125,7 +125,7 @@ mod tests {
         set_into(&mut dictionary1, "name", "The Doctor");
         set_into(&mut dictionary1, "season", 12);
         set_into(&mut dictionary1, "popular", true);
-        let wrapped: Arc<RwLock<dyn ShyAssociation>> = Arc::new(RwLock::new(dictionary1));
+        let wrapped: Arc<RwLock<dyn ShyAssociation + Send + Sync>> = Arc::new(RwLock::new(dictionary1));
         let shy_obj = ShyObject::share(wrapped);
         let deref = shy_obj.as_deref();
         let actual = deref.get("name");

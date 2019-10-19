@@ -6,14 +6,14 @@ use std::collections::HashMap;
 use std::time::{SystemTime, Duration};
 use std::cmp::{max, min};
 
-extern crate rand;
-use rand::{ thread_rng, rngs::ThreadRng, distributions::{Distribution, Uniform} }; 
-
 pub mod cache_entry; 
 use cache_entry::CacheEntry;
 
 pub mod cache_info; 
 use cache_info::CacheInfo;
+
+pub mod pseudorandom;
+use pseudorandom::PseudoRng;
 
 /// Number of candidates to retain for comparison in the algorithm when deciding which item to evict from the cache.
 /// The size 16 was derived experimentally by Redis as being optimal.
@@ -209,10 +209,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     info : CacheInfo,
 
     /// Random number generator to use when probing for better eviction candidates.
-    rng : ThreadRng,
-
-    /// Distribution to sample when generating random numbers that prevents sampling out of range values.
-    distribution : Uniform<usize>,
+    rng : PseudoRng,
 
     /// Number of random probes to use when searching for eviction candidates.
     eviction_probes : usize
@@ -230,8 +227,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
             entries : vec![Option::None; acceptable_capacity],
             position_for_key : HashMap::with_capacity(acceptable_capacity / 4),
             info : CacheInfo::new(acceptable_capacity),
-            rng : thread_rng(),
-            distribution : Uniform::new(EVICTION_CANDIDATES_SIZE, acceptable_capacity), // exclusive of the high value
+            rng : PseudoRng::new_with_seed(EVICTION_CANDIDATES_SIZE as i32, acceptable_capacity as i32, 0),
             eviction_probes : DEFAULT_EVICTION_PROBE_COUNT
         }
     }
@@ -288,7 +284,7 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
         let mut oldest_candidate_position = 0;
         for _ in 0..self.eviction_probes {
             // probe_position is guaranteed to not overlap with the candidates region of the entries Vec. 
-            let probe_position = self.distribution.sample(&mut self.rng);
+            let probe_position = self.rng.next_usize();
             // This loop acts like a bubble sort of the candidates section. 
             for candidate_position in 0..EVICTION_CANDIDATES_SIZE {
                 if self.is_entry_older(probe_position, candidate_position) {
