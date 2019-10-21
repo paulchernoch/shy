@@ -24,7 +24,7 @@ The following parts are in working order:
   - Creation of Context objects
   - Execution of expressions against a context in a command line REPL
   - Converting to and from **serde-json** **Value** objects (as preparation for the serialization and deserialization of rules which will be needed to stand up a REST API server.)
-  - Starting a Web Service and 
+  - Starting a Web Service and executing _some_ of the necessary RESTful API routes
 
 For an overview of the rule syntax and how to use the REPL to test expressions interactively (without a Web Service), see this file: 
 
