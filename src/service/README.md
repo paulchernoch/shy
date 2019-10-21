@@ -53,7 +53,8 @@ NOTE: At this time, only these routes are supported:
 
   - Index page: **GET /**
   - Expression tester: **POST /expression/execute**
-  - List RuleSets: **GET /rulesets**
+  - List all RuleSets: **GET /rulesets**
+  - List RuleSets for category: **GET /rulesets?category=name**
   - Add RuleSet: **PUT /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.

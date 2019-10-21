@@ -6,6 +6,14 @@ use super::super::service_state::ServiceState;
 use crate::cache::Cache;
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ListRulesetsQuery {
+    #[serde(default = "default_category")]
+    pub category: String
+}
+
+fn default_category() -> String { "*".into() }
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ListRulesetsResponse {
     pub ruleset_count: Option<usize>,
     pub ruleset_names : Option<Vec<String>>,
@@ -32,11 +40,26 @@ impl ListRulesetsResponse {
     }
 }
 
+/// Route handler for GET /rulesets with query parameter to filter by category.
+/// If no parameter is given, all names are returned.
+/// 
+/// Usage:
+/// 
+///   - GET /rulesets
+///   - GET /rulesets/category=cat
 #[get("/rulesets")]
-fn route(data: web::Data<RwLock<ServiceState>>) -> HttpResponse {
+fn route((query, data): (web::Query<ListRulesetsQuery>, web::Data<RwLock<ServiceState>>)) -> HttpResponse {
     let mut state = data.write().unwrap();
     state.tally();
-    let mut names = state.ruleset_cache.keys();
+    println!("Query for rulesets with category {}", query.category);
+    let mut names : Vec<String> = state.ruleset_cache
+      .values().iter()
+      .filter(|r| 
+          if let Some(ref cat) = (*r).category { *cat == query.category || query.category == "*".to_string() } 
+          else { false }
+      )
+      .map(|r| r.name.clone())
+      .collect();
     names.sort();
     let response = ListRulesetsResponse::new_with_success(names);
 

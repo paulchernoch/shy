@@ -29,8 +29,12 @@ pub enum SuccessCriteria {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RuleSet<'a> {
+    // Unique Name of RuleSet
     pub name : String,
     pub criteria : SuccessCriteria,
+
+    /// Optional RuleSet category. 
+    pub category : Option<String>,
     pub rules: Vec<Rule<'a>>
 }
 
@@ -39,8 +43,8 @@ impl<'a> RuleSet<'a> {
     /// 
     /// If any of the rules fail to compile, return an Err, otherwise an Ok. 
     /// If an Err is returned, all compiled rules will still be returned, with some marked as having an error. 
-    pub fn new(name : String, criteria : SuccessCriteria, uncompiled_rules : &Vec<String>) -> Result<Self,Self> {
-        let mut ruleset = RuleSet { name, criteria, rules : Vec::new() };
+    pub fn new(name : String, criteria : SuccessCriteria, category : Option<String>, uncompiled_rules : &Vec<String>) -> Result<Self,Self> {
+        let mut ruleset = RuleSet { name, criteria, category, rules : Vec::new() };
         let mut has_errors = false;
         for (i, rule_source) in uncompiled_rules.iter().enumerate() {
             let rule = Rule::new(rule_source, i+1, None);

@@ -16,11 +16,15 @@ pub struct AddRulesetRequest {
     #[serde(default = "default_success_criteria")]
     pub criteria : SuccessCriteria,
 
+    #[serde(default = "default_category")]
+    pub category : Option<String>,
+
     /// Uncompiled rules as a list of strings.
     pub rule_source: Vec<String>
 }
 
 fn default_success_criteria() -> SuccessCriteria { SuccessCriteria::LastPasses }
+fn default_category() -> Option<String> { None }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddRulesetResponse<'a> {
@@ -45,7 +49,7 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let mut state = data.write().unwrap();
     state.tally();
 
-    let ruleset_result = RuleSet::new((*path).clone(), req.criteria, &req.rule_source);
+    let ruleset_result = RuleSet::new((*path).clone(), req.criteria, req.category.clone(), &req.rule_source);
 
     println!("Add Ruleset for {}", *path);
 

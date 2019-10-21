@@ -13,7 +13,7 @@ pub struct CacheEntry<K,V>
     /// Key for the item
     pub key : Arc<K>,
     /// Item being stored in the cache
-    value : Arc<V>,
+    pub value : Arc<V>,
     /// Number of accesses of any key from the creation of the cache up until the last time this key was accessed
     /// The higher the number, the more recently the item was accessed (relative to other items).
     access_sequence : u64,

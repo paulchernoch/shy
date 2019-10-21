@@ -117,6 +117,9 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
     /// Iterator over all the keys in a Cache. 
     fn keys(&self) -> Vec<K>;
 
+    /// Iterator over all the keys in a Cache. 
+    fn values(&self) -> Vec<V>;
+
     /// The maximum capacity allocated for the cache.
     fn capacity(&self) -> usize { self.get_info().capacity }
 
@@ -334,10 +337,17 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
 {
     fn keys(&self) -> Vec<K> {
+        self.position_for_key.keys()
+            .map(|k| k.deref()
+            .clone())
+            .collect()
+    }
+
+    fn values(&self) -> Vec<V> {
         self.entries
             .iter()
             .filter(|e_option| (*e_option).is_some())
-            .map(|e_option| (*e_option).as_ref().unwrap().key.deref().clone())
+            .map(|e_option| (*e_option).as_ref().unwrap().value.deref().clone())
             .collect()
     }
 
