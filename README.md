@@ -34,4 +34,4 @@ To operate the Web Server and learn the REST API to its commands, read this:
 
 [REST API for Shy Rules Service](./src/service/README.md)
 
-(Note: At this time, only one route of the Web Service is functional: "/expression/execute".)
+(Note: The above link lists which REST routes have been implemented so far.)
