@@ -5,14 +5,18 @@ use actix_web::{get, web, HttpResponse};
 use super::super::service_state::ServiceState;
 use crate::cache::Cache;
 
+/// Holds the optional query parameters for the route
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListRulesetsQuery {
     #[serde(default = "default_category")]
     pub category: String
 }
 
+/// The default category for the query is asterisk "*" which means "all".
 fn default_category() -> String { "*".into() }
 
+/// Defines the response sent to the caller for this route, which lists the names of 
+/// all RuleSets matching the criteria, sorted alphabetically.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListRulesetsResponse {
     pub ruleset_count: Option<usize>,

@@ -2,3 +2,4 @@
 pub mod expression_execute;
 pub mod list_rulesets;
 pub mod add_ruleset;
+pub mod get_ruleset;

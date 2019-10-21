@@ -7,6 +7,7 @@ pub mod service_state;
 use routes::expression_execute;
 use routes::list_rulesets;
 use routes::add_ruleset;
+use routes::get_ruleset;
 use service_state::ServiceState;
 use crate::cache::Cache;
 
@@ -44,6 +45,7 @@ pub fn shy_service<'a>(ip : &str, port : &str) {
                 .service(expression_execute::route)
                 .service(list_rulesets::route)
                 .service(add_ruleset::route)
+                .service(get_ruleset::route)
         })
         .bind(format!("{}:{}", ip, port))
         .unwrap()
