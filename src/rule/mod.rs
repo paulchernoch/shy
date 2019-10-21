@@ -12,12 +12,15 @@ pub mod ruleset;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Indicates the type of a Rule.
 pub enum RuleType {
-    /// Indicates that the rule defines one or more properties. 
+    /// The rule defines one or more properties. 
     /// It may return a boolean or a value of any supported type. 
     Property,
 
-    /// Indicates that the Rule returns a boolean and is a pass/fail rule. 
-    Predicate
+    /// The Rule returns a boolean and is a pass/fail rule. 
+    Predicate,
+
+    /// The rule returns a string that defines a category.  
+    Category
 }
 
 
