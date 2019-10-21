@@ -56,6 +56,7 @@ NOTE: At this time, only these routes are supported:
   - List all RuleSets: **GET /rulesets**
   - List RuleSets for category: **GET /rulesets?category=name**
   - Add RuleSet: **PUT /rulesets/{name}**
+  - Get RuleSet: **GET /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
