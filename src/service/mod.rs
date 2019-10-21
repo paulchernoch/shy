@@ -1,11 +1,11 @@
 use std::sync::RwLock;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
-pub mod request;
 pub mod routes;
 pub mod service_state;
 
 use routes::expression_execute;
+use routes::list_rulesets;
 use routes::add_ruleset;
 use service_state::ServiceState;
 use crate::cache::Cache;
@@ -42,6 +42,7 @@ pub fn shy_service<'a>(ip : &str, port : &str) {
                 .register_data(service_data.clone())
                 .service(index)
                 .service(expression_execute::route)
+                .service(list_rulesets::route)
                 .service(add_ruleset::route)
         })
         .bind(format!("{}:{}", ip, port))

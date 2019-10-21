@@ -49,9 +49,11 @@ To change the IP address and port:
 | Execute Expression         | POST /expression/execute       | Expression, Context |
 | Exec Ruleset               | POST /rulesets/{name}/execute  | Context             |
 
-NOTE: At this time, only one route is supported: 
+NOTE: At this time, only these routes are supported: 
 
-  - **/expression/execute**
+  - Index page: **GET /**
+  - Expression tester: **POST /expression/execute**
+  - Add RuleSet: **PUT /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
@@ -138,3 +140,15 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 
 This case currently logs the whole process of executing the expression to the console. 
 (Eventually this should go to a log file.)
+
+4. Add a RuleSet named "shopping_rules" to the cache.
+   
+_HTTP Command_:   **PUT /rulesets/shopping_rules**
+
+```
+{
+	"rule_source" : [ 
+		"rule.name = \"is-it-way-bigger\";rule.description = \"Is it way too big to fit in my car or what?\";rule.category = \"shopping\";rule.id = 2005;size > 150" 
+	]
+}
+```

@@ -1,4 +1,5 @@
 // use std::rc::Rc;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::hash::Hash;
 use std::fmt::Debug;
@@ -112,6 +113,9 @@ where K: Eq + Hash + PartialEq + Debug + Clone,
 
     /// The current number of items stored in the cache.
     fn size(&self) -> usize { self.get_info().size }
+
+    /// Iterator over all the keys in a Cache. 
+    fn keys(&self) -> Vec<K>;
 
     /// The maximum capacity allocated for the cache.
     fn capacity(&self) -> usize { self.get_info().capacity }
@@ -329,6 +333,14 @@ impl<K,V> Cache<K,V> for ApproximateLRUCache<K,V>
 where K: Eq + Hash + PartialEq + Debug + Clone,
       V: Clone
 {
+    fn keys(&self) -> Vec<K> {
+        self.entries
+            .iter()
+            .filter(|e_option| (*e_option).is_some())
+            .map(|e_option| (*e_option).as_ref().unwrap().key.deref().clone())
+            .collect()
+    }
+
     /// Add a `value` to the cache if it is not already present, or replace the value currently there if it is.
     /// In either case, the value will be Cloned before being stored.
     /// Returns true if the value was added, false if replaced.
