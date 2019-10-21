@@ -53,6 +53,7 @@ NOTE: At this time, only these routes are supported:
 
   - Index page: **GET /**
   - Expression tester: **POST /expression/execute**
+  - List RuleSets: **GET /rulesets**
   - Add RuleSet: **PUT /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
@@ -61,8 +62,9 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 
 1. **Evaluate an expression without a context**:
 
-  - Call: POST /expression/execute
-  - JSON Request Body:
+_HTTP Command_:   POST /expression/execute
+   
+**JSON Request Body:**
 
 ```
 {
@@ -81,8 +83,9 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 
 2. **Evaluate an expression with a context**, but do not request for the updated context to be sent back:
 
-  - Call: POST /expression/execute
-  - JSON Request Body:
+_HTTP Command_:   POST /expression/execute
+
+**JSON Request Body:**
 
 ```
 {
@@ -92,7 +95,7 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 }
 ```
 
-  - Response:
+**Response:**
 
 ```
 {
@@ -104,7 +107,9 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 
 3. **Evaluate an expression with a context, request the updated context in the response**, and also log debugging information:
 
-  - JSON Request Body:
+_HTTP Command_:   POST /expression/execute
+
+**JSON Request Body:**
 
 ```
 {
@@ -116,7 +121,7 @@ This covers the cases **Execute Expression** and **Execute Expression with Conte
 }
 ```
 
-  - Response:
+**Response:**
 
 ```
 {
@@ -145,10 +150,28 @@ This case currently logs the whole process of executing the expression to the co
    
 _HTTP Command_:   **PUT /rulesets/shopping_rules**
 
+
+**Request body:**
+
 ```
 {
 	"rule_source" : [ 
 		"rule.name = \"is-it-way-bigger\";rule.description = \"Is it way too big to fit in my car or what?\";rule.category = \"shopping\";rule.id = 2005;size > 150" 
 	]
+}
+```
+
+5. List the names of all RuleSets present in the cache.
+
+_HTTP Command_:   **GET /rulesets**
+
+**Response:**
+
+```
+{
+  "ruleset_count":2,
+  "ruleset_names":["answer1","answer2"],
+  "success":true,
+  "error":null
 }
 ```
