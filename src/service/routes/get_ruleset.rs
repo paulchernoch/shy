@@ -41,7 +41,7 @@ impl<'a> GetRulesetResponse<'a> {
     }
 }
 
-/// Route handler for GET /rulesets/{name}. 
+/// Read a Ruleset: the route handler for GET /rulesets/{name}. 
 #[get("/rulesets/{name}")]
 fn route((path, data): (web::Path<String>, web::Data<RwLock<ServiceState>>)) -> HttpResponse {
     let mut state = data.write().unwrap();

@@ -43,7 +43,7 @@ impl<'a> AddRulesetResponse<'a> {
 }
 
 
-/// Route handler for PUT /rulesets/{name}. 
+/// Create a RuleSet: the route handler for PUT /rulesets/{name}. 
 #[put("/rulesets/{name}")]
 fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, web::Data<RwLock<ServiceState>>)) -> HttpResponse {
     let mut state = data.write().unwrap();

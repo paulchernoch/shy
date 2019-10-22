@@ -42,8 +42,8 @@ To change the IP address and port:
 | -------------------------- | ------------------------------ | ------------------- |
 | List Rulesets              | GET /rulesets                  | N/A                 |
 | List Rulesets for category | GET /rulesets?category={cat}   | N/A                 |
-| Add Ruleset                | PUT /rulesets/{name}           | Ruleset             |
-| Get Ruleset                | GET /rulesets/{name}           | N/A                 |
+| Create Ruleset                | PUT /rulesets/{name}           | Ruleset             |
+| Read Ruleset                | GET /rulesets/{name}           | N/A                 |
 | Update Ruleset             | POST /rulesets/{name}          | Partial Ruleset     |
 | Delete Ruleset             | DELETE /rulesets/{name}        | N/A                 |
 | Execute Expression         | POST /expression/execute       | Expression, Context |
@@ -55,8 +55,9 @@ NOTE: At this time, only these routes are supported:
   - Expression tester: **POST /expression/execute**
   - List all RuleSets: **GET /rulesets**
   - List RuleSets for category: **GET /rulesets?category=name**
-  - Add RuleSet: **PUT /rulesets/{name}**
-  - Get RuleSet: **GET /rulesets/{name}**
+  - Create RuleSet: **PUT /rulesets/{name}**
+  - Read RuleSet: **GET /rulesets/{name}**
+  - Delete RuleSet: **DELETE /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
