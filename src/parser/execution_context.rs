@@ -15,12 +15,32 @@ use super::voting_rule::VotingRule;
 ///   - Some variables are loaded for use in the formulas.
 ///   - Some variables are used to store the results of formulas after execution. 
 ///   - The functions may be called in the expressions.
+///   - The is_applicable flag is reset at the start of each execution and unset if an applicability check fails.  
 #[derive(Serialize, Deserialize)]
 pub struct ExecutionContext<'a> {
+    /// Holds variables representing inputs to or outputs from the execution. 
     pub variables: HashMap<String, ShyValue>,
 
+    /// Holds predefined functions available for use in the formulas. 
     #[serde(skip)]
-    functions: HashMap<String, ShyFunction<'a>>
+    functions: HashMap<String, ShyFunction<'a>>,
+
+    /// Was the rule applicable in this context? 
+    /// Inapplicable rules are ignored when deciding if a `RuleSet` passed or failed. 
+    /// This must be reset to true at the beginning of each execution of each new expression. 
+    /// It is set to false if a question mark applicability operator is encountered and it 
+    /// evaluates the previous clause in the formula to false. 
+    pub is_applicable : bool
+}
+
+impl<'a> Clone for ExecutionContext<'a> {
+    /// Only a partial clone. Any non-default functions will be lost.
+    fn clone(&self) -> Self {
+        let mut the_clone = ExecutionContext::default();
+        the_clone.is_applicable = self.is_applicable;
+        the_clone.variables = self.variables.clone();
+        the_clone
+    }
 }
 
 type ShyFunction<'a> = Box<(dyn Fn(ShyValue) -> ShyValue + 'a)>;
@@ -217,7 +237,8 @@ impl<'a> ExecutionContext<'a> {
         funcs.extend(ExecutionContext::standard_functions());
         ExecutionContext {
             variables: vars,
-            functions: funcs
+            functions: funcs,
+            is_applicable : true
         }
     }
 
@@ -225,7 +246,8 @@ impl<'a> ExecutionContext<'a> {
     pub fn default() -> Self {
         ExecutionContext {
             variables: ExecutionContext::standard_variables(),
-            functions: ExecutionContext::standard_functions()
+            functions: ExecutionContext::standard_functions(),
+            is_applicable: true
         }
     }    
 
@@ -450,6 +472,6 @@ impl<'a> From<&HashMap<String,f64>> for ExecutionContext<'a> {
 
 impl<'a> fmt::Debug for ExecutionContext<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Exec Context: {:?}", self.variables)
+        write!(f, "Exec Context: is_applicable = {}. {:?}", self.is_applicable, self.variables)
     }
 }

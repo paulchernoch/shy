@@ -2,8 +2,8 @@ use std::f64;
 use serde_json::{Value, Number, Map};
 use super::shy_token::ShyValue;
 use super::shy_scalar::ShyScalar;
-
 use super::shy_object::ShyObject;
+use super::execution_context::ExecutionContext;
 
 //  Convert ShyValues to and from Value enums in the serde crate.
 //  Not all ShyValue variants can be expressed as a Value in serde, and vice versa.
@@ -125,6 +125,26 @@ impl From<&Value> for ShyValue {
 impl From<Value> for ShyValue {
     fn from(v : Value) -> Self {
         (&v).into()
+    }
+}
+
+/// Convert ExecutionContext into a serde-json Value, omitting the functions.
+impl<'a> From<ExecutionContext<'a>> for Value {
+    fn from(ctx : ExecutionContext<'a>) -> Self {
+        (&ctx).into()
+    }
+}
+
+impl<'a> From<&ExecutionContext<'a>> for Value {
+    fn from(ctx : &ExecutionContext<'a>) -> Self {
+        let mut variables_serde_map : Map<String, Value> = Map::with_capacity(ctx.variables.len());
+        for (key, val) in &ctx.variables {
+            variables_serde_map[key] = val.into();
+        }
+        let mut ctx_serde_map : Map<String, Value> = Map::with_capacity(2);
+        ctx_serde_map["is_applicable".into()] = Value::Bool(ctx.is_applicable);
+        ctx_serde_map["variables".into()] =  Value::Object(variables_serde_map);
+        Value::Object(ctx_serde_map)
     }
 }
 

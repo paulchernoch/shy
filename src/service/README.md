@@ -28,13 +28,12 @@ To change the IP address and port:
 ## REST Commands
 
 1. **List Rulesets** - Get a list of the names of all **Rulesets** stored in the service cache. 
-2. **Add Ruleset** - Add a **Ruleset** having the given name to the **service cache**, or completely replace the existing **Ruleset**.
+2. **Create Ruleset** - Add a **Ruleset** having the given name to the **service cache**, or completely replace the existing **Ruleset**.
 3. **Get Ruleset** - Get a **Ruleset** from the service cache that has the given name.
-4. **Update Ruleset** - Update the service cache with new versions of one or more rules  in a **Ruleset**. **Rules** belonging to the previously cached **Ruleset** in the cache which are not part of the request are left alone.
-5. **Delete Ruleset** - Delete the given **Ruleset** from the service cache.
-6. **Execute Expression** - Compile and execute an **Expression** without a data **context**, bypassing the **service cache**. Return the result of the evaluation.
-7. **Execute Expression with Context** - Compile and execute an **Expression** with a data **context**, bypassing the **service cache**.
-8. **Execute Ruleset with Context** - Name a **Ruleset** expected to be in the **service cache** and supply a **context**.
+4. **Delete Ruleset** - Delete the given **Ruleset** from the service cache.
+5. **Execute Expression** - Compile and execute an **Expression** without a data **context**, bypassing the **service cache**. Return the result of the evaluation.
+6. **Execute Expression with Context** - Compile and execute an **Expression** with a data **context**, bypassing the **service cache**.
+7. **Execute Ruleset with Context** - Name a **Ruleset** expected to be in the **service cache** and supply a **context**.
 
 ## Endpoint Syntax
 
@@ -42,12 +41,11 @@ To change the IP address and port:
 | -------------------------- | ------------------------------ | ------------------- |
 | List Rulesets              | GET /rulesets                  | N/A                 |
 | List Rulesets for category | GET /rulesets?category={cat}   | N/A                 |
-| Create Ruleset                | PUT /rulesets/{name}           | Ruleset             |
-| Read Ruleset                | GET /rulesets/{name}           | N/A                 |
-| Update Ruleset             | POST /rulesets/{name}          | Partial Ruleset     |
+| Create Ruleset             | PUT /rulesets/{name}           | Ruleset             |
+| Read Ruleset               | GET /rulesets/{name}           | N/A                 |
 | Delete Ruleset             | DELETE /rulesets/{name}        | N/A                 |
 | Execute Expression         | POST /expression/execute       | Expression, Context |
-| Exec Ruleset               | POST /rulesets/{name}/execute  | Context             |
+| Execute Ruleset            | POST /rulesets/{name}          | Context             |
 
 NOTE: At this time, only these routes are supported: 
 

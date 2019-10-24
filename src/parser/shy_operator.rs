@@ -56,6 +56,11 @@ use crate::lexer::parser_token::ParserToken;
         And, 
         Or, 
         Ternary,
+        /// The QuitIfFalse operator is also called the applicability operator. 
+        /// If while executing a `Rule` we evaluate this operator and it finds a false value and quits the evaluation,
+        /// that means that the `Rule` is not applicable. 
+        /// If part of a `RuleSet`, such an `Expression` will not contribute to the final decision 
+        /// as to whether the `RuleSet` passed or failed.
         QuitIfFalse,
         Assign,
         PlusAssign,

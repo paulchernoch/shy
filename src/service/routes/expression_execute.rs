@@ -71,6 +71,9 @@ fn route((req, data): (web::Json<ExpressionExecuteRequest>, web::Data<RwLock<Ser
     state.tally();
     let mut response = ExpressionExecuteResponse::new();
     let shy: ShuntingYard = req.expression.clone().into();
+    // Why create the response before executing the expression?
+    // Because we need to create the ExecutionContext in such a way that it is owned by the response,
+    // so that we can return it without having to clone it!
     response.context = Some(ExecutionContext::default());
     match shy.compile() {
         Ok(mut expr) => {

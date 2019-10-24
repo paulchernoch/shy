@@ -9,6 +9,7 @@ use routes::list_rulesets;
 use routes::add_ruleset;
 use routes::get_ruleset;
 use routes::delete_ruleset;
+use routes::execute_ruleset;
 use service_state::ServiceState;
 use crate::cache::Cache;
 
@@ -48,6 +49,7 @@ pub fn shy_service<'a>(ip : &str, port : &str) {
                 .service(add_ruleset::route)
                 .service(get_ruleset::route)
                 .service(delete_ruleset::route)
+                .service(execute_ruleset::route)
         })
         .bind(format!("{}:{}", ip, port))
         .unwrap()

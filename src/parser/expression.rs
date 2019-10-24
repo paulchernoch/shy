@@ -106,8 +106,14 @@ impl<'a> Expression<'a> {
     }
 
     /// Execute an already compiled expression against the given ExecutionContext.  
+    /// 
+    ///   - At the start of execution, the context is marked as **applicable**, meaning it is assumed that
+    /// the `Expression` will contribute to the decision as to whether a `RuleSet` passes or fails.
+    ///   - The `QuitIfFalse` operator has a side effect of marking the results of the current `Rule` as **inapplicable**
+    /// if it encounters a `false` value. 
     pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
         let mut output_stack : Vec<ShyValue> = vec![];
+        context.is_applicable = true;
         if self.trace_on {
             println!("Tracing: {}", self.expression_source);
             Self::dump_postfix(&self.postfix_order);
@@ -123,6 +129,7 @@ impl<'a> Expression<'a> {
                     // Shortcut the expression evaluation at the question mark, cease execution and return false. 
                     let test_result = Self::operate(&mut output_stack, ShyOperator::QuitIfFalse, context);
                     if test_result.is_falsey() {
+                        context.is_applicable = false;
                         break;
                     }
                 },
