@@ -11,6 +11,9 @@ use crate::cache::Cache;
 /// 
 /// The RuleSet name is specified in the URL, not the body of the PUT request.
 pub struct AddRulesetRequest {
+    #[serde(default = "default_context_name")]
+    pub context_name : String,
+
     /// Criteria by which to judge whether a RuleSet succeeds of fails when applied to a context,
     /// defaulting to `LastPasses`.
     #[serde(default = "default_success_criteria")]
@@ -23,6 +26,7 @@ pub struct AddRulesetRequest {
     pub rule_source: Vec<String>
 }
 
+fn default_context_name() -> String { "$".into() }
 fn default_success_criteria() -> SuccessCriteria { SuccessCriteria::LastPasses }
 fn default_category() -> Option<String> { None }
 
@@ -49,7 +53,7 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let mut state = data.write().unwrap();
     state.tally();
 
-    let ruleset_result = RuleSet::new((*path).clone(), req.criteria, req.category.clone(), &req.rule_source);
+    let ruleset_result = RuleSet::new((*path).clone(), req.context_name.clone(), req.criteria, req.category.clone(), &req.rule_source);
 
     println!("Add Ruleset for {}", *path);
 

@@ -286,7 +286,13 @@ impl<'a> ExecutionContext<'a> {
                 }
             }
         }
-        
+    }
+
+    pub fn store_chain_string<T>(&mut self, path_thing: T, val: ShyValue) -> Result<(), ShyValue>
+    where T : Into<String> {
+        let path_string : String = path_thing.into();
+        let path = Self::str_to_property_chain(&path_string);
+        self.store_chain(&path, val)
     }
 
     fn string_to_static_str(s: String) -> &'static str {
