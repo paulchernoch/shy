@@ -2,8 +2,7 @@ use std::marker::PhantomData;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::sync::{Arc,RwLock};
-// use std::rc::Rc;
-//use std::cell::RefCell;
+use std::result::Result;
 use std::borrow::BorrowMut;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
@@ -491,7 +490,35 @@ impl<'a> Expression<'a> {
         }
         (untangled, tangled)
     }
-    
+
+    /// Sort the rules, returning a fully sorted Vec on success or a partially sorted Vec on failure. 
+    pub fn sort<'b, X>(exprs : Vec<X>) -> Result<Vec<X>, Vec<X>> 
+    where X : Expressive<'b> {
+        let mut rules : Vec<X> = Vec::new();
+        let (sorted, still_unsorted) = Expression::untangle(exprs);
+        rules.extend(sorted
+            .into_iter()
+            .map(|r| {
+                match Arc::try_unwrap(r) {
+                    Ok(rule) => rule,
+                    Err(_arc_rule) => panic!("Multiple references to rule returned by untangle")
+                }
+            })
+        );
+        if still_unsorted.len() > 0 {
+            rules.extend(still_unsorted
+                .into_iter()
+                .map(|r| {
+                    match Arc::try_unwrap(r) {
+                        Ok(rule) => rule,
+                        Err(_arc_rule) => panic!("Multiple references to rule returned by untangle")
+                    }
+                })
+            );
+            Err(rules)
+        }
+        else { Ok(rules) }
+    }
 }
 
 #[cfg(test)]

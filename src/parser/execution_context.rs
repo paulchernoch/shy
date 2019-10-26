@@ -251,6 +251,15 @@ impl<'a> ExecutionContext<'a> {
         }
     }    
 
+    /// Create an empty context that has neither variables nor functions.
+    pub fn empty() -> Self {
+        ExecutionContext {
+            variables: HashMap::new(),
+            functions: HashMap::new(),
+            is_applicable: true
+        }
+    } 
+
     /// Store a new value for the variable in the context.
     pub fn store<V>(&mut self, name: &String, val: V)
     where V : Into<ShyValue>
@@ -453,6 +462,21 @@ impl<'a> ExecutionContext<'a> {
         match self.functions.get(&function_name) {
             Some(func) => func(args),
             None => ShyValue::error(format!("No function named {} in context", function_name))
+        }
+    }
+
+    /// Get the value of a string property, but return a default value if absent. 
+    pub fn get_string_property_chain(&self, property : &str, default_value : String) -> String {
+        match self.load_str_chain(property) {
+            Some(ShyValue::Scalar(ShyScalar::String(value))) => value,
+            _ => default_value
+        }
+    }
+
+    pub fn get_usize_property_chain(&self, property : &str, default_value : usize) -> usize {
+        match self.load_str_chain(property) {
+            Some(ShyValue::Scalar(ShyScalar::Integer(value))) => value as usize,
+            _ => default_value
         }
     }
 

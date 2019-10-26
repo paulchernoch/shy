@@ -3,9 +3,6 @@ use crate::parser::expression::Expression;
 use crate::parser::expression::Expressive;
 
 use crate::parser::execution_context::ExecutionContext;
-use crate::parser::shy_token::ShyValue;
-use crate::parser::shy_scalar::ShyScalar;
-
 pub mod ruleset;
 
 
@@ -84,7 +81,7 @@ impl<'a, 'b : 'a> Rule<'a> {
     /// Construct a Rule, deriving some of its properties from variables in the context if they are present. 
     /// To accomplish this, the expression is evaluated. Even if the context lacks information necessary
     /// to completely evaluate the Rule, a well defined expression will be able to set the properties
-    /// that begin with "Rule." as part of their names.
+    /// that begin with "rule." as part of their names.
     pub fn new<S>(expression_source : S, id : usize, ctx_opt : Option<ExecutionContext<'b>>) -> Rule<'a>
     where S : Into<String> {
         let expr_str = expression_source.into();
@@ -96,26 +93,15 @@ impl<'a, 'b : 'a> Rule<'a> {
         let _ = expression_to_use.exec(&mut context);
 
         // Attempt to get Rule property values from the context, but use defaults if not found.
-        let id_to_use = match context.load_str_chain("rule.id") {
-            Some(ShyValue::Scalar(ShyScalar::Integer(rule_id))) => rule_id as usize,
-            _ => id
-        };
-        let name_to_use = match context.load_str_chain("rule.name") {
-            Some(ShyValue::Scalar(ShyScalar::String(rule_name))) => rule_name,
-            _ => format!("Rule{}", id)
-        };
-        let description_to_use = match context.load_str_chain("rule.description") {
-            Some(ShyValue::Scalar(ShyScalar::String(rule_description))) => Some(rule_description),
-            _ => None
-        };
-        let rule_type_to_use = match context.load_str_chain("rule.type") {
-            Some(ShyValue::Scalar(ShyScalar::String(ref rule_type))) if rule_type == "Property" => RuleType::Property,
-            _ => RuleType::Predicate
-        };
-        let category_to_use = match context.load_str_chain("rule.category") {
-            Some(ShyValue::Scalar(ShyScalar::String(rule_category))) => Some(rule_category),
-            _ => None
-        };
+        let id_to_use = context.get_usize_property_chain("rule.id", id);
+        let name_to_use = context.get_string_property_chain("rule.name", format!("Rule{}", id));
+        let description_to_use = Rule::string_or_none(&context.get_string_property_chain("rule.description", "".into()));
+        let rule_type_string = context.get_string_property_chain("rule.type", "Predicate".into());
+        let rule_type_to_use = 
+            if rule_type_string == "Category" { RuleType::Category }
+            else if rule_type_string == "Property" { RuleType::Property }
+            else { RuleType::Predicate };
+        let category_to_use = Rule::string_or_none(&context.get_string_property_chain("rule.category", "".into()));
         Rule {
             name : name_to_use,
             id : id_to_use,
@@ -124,6 +110,11 @@ impl<'a, 'b : 'a> Rule<'a> {
             category : category_to_use,
             expression : expression_to_use
         }
+    }
+
+    fn string_or_none(s : &str) -> Option<String> {
+        if s.len() == 0 { None }
+        else { Some(s.into()) }
     }
 
     /// Names of all properties and property chains that this rule defines. 

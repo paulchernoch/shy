@@ -1,7 +1,9 @@
+use std::result::Result;
+use regex::Regex;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use crate::parser::execution_context::ExecutionContext;
-use crate::parser::expression::Expressive;
+use crate::parser::expression::{Expressive, Expression};
 use crate::parser::shy_token::ShyValue;
 use super::{Rule, RuleType};
 
@@ -41,6 +43,25 @@ pub enum SuccessCriteria {
     /// The use case is RuleSets that merely set properties and make no assertion of pass or fail. 
     AlwaysPass
 }
+
+impl From<&str> for SuccessCriteria {
+    fn from(s : &str) -> Self {
+        if s == "NeverPass" { SuccessCriteria::NeverPass }
+        else if s == "AllPass" { SuccessCriteria::AllPass }
+        else if s == "MajorityPass" { SuccessCriteria::MajorityPass }
+        else if s == "AnyPass" { SuccessCriteria::AnyPass }
+        else if s == "LastPasses" { SuccessCriteria::LastPasses }
+        else if s == "AlwaysPass" { SuccessCriteria::AlwaysPass }
+        else { SuccessCriteria::LastPasses }
+    }
+}
+
+impl From<String> for SuccessCriteria {
+    fn from(s : String) -> Self {
+        s.as_str().into()
+    }
+}
+
 
 /// Holds the results of executing a RuleSet. 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -125,6 +146,26 @@ impl<'a> RuleSetResult<'a> {
         }
     }
 
+    pub fn empty() -> Self 
+    {
+        RuleSetResult {
+            ruleset_name : "empty".into(),
+            criteria_used : SuccessCriteria::LastPasses,
+            property_rule_count : 0,
+            category_rule_count : 0,
+            applicable_rule_count : 0,
+            inapplicable_rule_count : 0,
+            passing_applicable_rule_count : 0, 
+            did_last_applicable_rule_pass : false,
+            last_applicable_rule_value : None,
+            did_ruleset_pass : false,
+            did_ruleset_fail : false,
+            rules_with_errors_count : 0,
+            errors : Vec::new(),
+            context : ExecutionContext::empty()
+        }
+    }
+
     /// After all other values in the structure have been computed, decide on the values of did_ruleset_pass and did_ruleset_fail.
     pub fn decide_pass_fail(&mut self) {
         // Interpret the RuleSet execution according to the criteria_used.
@@ -150,34 +191,126 @@ impl<'a> RuleSetResult<'a> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RuleSet<'a> {
-    // Unique Name of RuleSet
+    /// Unique Name of RuleSet
     pub name : String,
+
+    /// Criteria used during execution to decide if the RuleSet passes. 
     pub criteria : SuccessCriteria,
 
-    /// Optional RuleSet category. 
+    /// Optional RuleSet category, useful for filtering, but not involved in rule execution.
     pub category : Option<String>,
+
+    /// The Rules to be executed, assumed to be properly sorted so that no Rule with a dependency on another Rule
+    /// is listed before that dependency. 
     pub rules: Vec<Rule<'a>>
 }
 
 impl<'a> RuleSet<'a> {
-    /// Construct a RuleSet from a list of uncompiled rules. 
+    /// Construct a RuleSet from a list of uncompiled rules and sort them in dependency order. 
     /// 
-    /// If any of the rules fail to compile, return an Err, otherwise an Ok. 
-    /// If an Err is returned, all compiled rules will still be returned, with some marked as having an error. 
+    /// If any of the rules fail to compile, do not sort the rules, then return an Err, otherwise an Ok. 
+    /// If sorting fails because of circular dependencies, return an Err.
+    /// If an Err is returned, all compiled rules will still be returned, and some may be marked as having an error. 
     pub fn new<T>(name : T, criteria : SuccessCriteria, category : Option<String>, uncompiled_rules : &Vec<String>) -> Result<Self,Self> 
     where T : Into<String>
     {
         let mut ruleset = RuleSet { name : name.into(), criteria, category, rules : Vec::new() };
         let mut has_errors = false;
+        let mut unsorted_rules = Vec::new();
         for (i, rule_source) in uncompiled_rules.iter().enumerate() {
             let rule = Rule::new(rule_source, i+1, None);
             if rule.expression.had_compile_error() {
                 has_errors = false;
             }
-            ruleset.rules.push(rule);
+            unsorted_rules.push(rule);
         }
-        if has_errors { Err(ruleset) } 
-        else { Ok(ruleset) }
+        if has_errors { 
+            ruleset.rules = unsorted_rules;
+            Err(ruleset)
+        } 
+        else {
+            // Sort the rules
+            match Expression::sort(unsorted_rules) {
+                Ok(rules) => {
+                    ruleset.rules.extend(rules);
+                    Ok(ruleset)
+                },
+                Err(rules) => {
+                    ruleset.rules.extend(rules);
+                    Err(ruleset)
+                }
+            }
+        }
+    }
+
+    /// Construct a `RuleSet` from a single block of text and sort the `Rules` in dependency order. 
+    /// Several attributes of the `RuleSet` will be optionally parsed from the text. 
+    /// 
+    ///   - ruleset.name - If present, use this to set the `name`. If omitted, use "Untitled".
+    ///   - ruleset.criteria - If present, use to set the `criteria`. If omitted, use `Predicate`.
+    ///   - ruleset.category - If present, use to set the `category`. If omitted, use `None`.
+    /// 
+    /// If `single_newline_separates_rules` is true, then assume one rule per line.
+    /// Otherwise, assume that Rules may span multiple lines and are separated by one or more consecutive 
+    /// blank lines. A blank line consists of zero or more spaces or tabs followed by a newline.
+    /// 
+    /// If any of the rules fail to compile, do not sort the rules, then return an Err, otherwise an Ok. 
+    /// If sorting fails because of circular dependencies, return an Err.
+    /// If an Err is returned, all compiled rules will still be returned, and some may be marked as having an error. 
+    pub fn new_from_text<T>(ruleset_text : T, single_newline_separates_rules : bool) -> Result<Self,Self> 
+    where T : Into<String> {
+        let mut rule_source = Vec::new();
+        let mut hold = String::new();
+
+        // TODO: Make Regex a lazy static for performance.
+        let whitespace = Regex::new(r"^\s*$").unwrap();
+        for line in ruleset_text.into().lines() {
+            if whitespace.is_match(line) {
+                if hold.len() > 0 {
+                    rule_source.push(hold);
+                    hold = String::new();
+                }
+            }
+            else {
+                if single_newline_separates_rules {
+                    hold.push_str(line);
+                    hold.push('\n');
+                }
+                else {
+                    rule_source.push(line.to_string());
+                }
+            }
+        }
+        if hold.len() > 0 {
+            rule_source.push(hold);
+        }
+        let ruleset_opt = RuleSet::new("Untitled", SuccessCriteria::LastPasses, None, &rule_source);
+        if ruleset_opt.is_err() { return ruleset_opt }
+        let mut ruleset = ruleset_opt.unwrap();
+        ruleset.apply_ruleset_variables();
+        Ok(ruleset)
+    }
+
+    /// Execute the RuleSet and extract some variables from the context to set the name, criteria and category. 
+    fn apply_ruleset_variables(&mut self) {
+        // The Context does not need any of the variables expected by the formulas in the RuleSet.
+        // Most of the Rules can fail, but the parts that define these properties will likely succeed, as all they
+        // do is assign a string to a variable. 
+        let ruleset_name;
+        let ruleset_criteria;
+        let ruleset_category;
+        {
+            // TODO: RuleSet, RuleSetResult and ExecutionContext become entangled,
+            // so we need the latter two to go out of scope so that we can release the borrow on RuleSet, then continue initializing it. 
+            let mut context = ExecutionContext::default();
+            let exec_result = self.exec(&mut context, false);
+            ruleset_name = exec_result.context.get_string_property_chain("ruleset.name", "Untitled".into());
+            ruleset_criteria = exec_result.context.get_string_property_chain("ruleset.criteria", "LastPasses".into());
+            ruleset_category = Rule::string_or_none(&exec_result.context.get_string_property_chain("rule.category", "".into()));
+        }
+        self.name = ruleset_name;
+        self.criteria = ruleset_criteria.into();
+        self.category = ruleset_category;
     }
 
     /// Execute all the `Expressions` in the `RuleSet`, decide if it passes or fails, and return a structure
@@ -236,4 +369,21 @@ impl<'a> RuleSet<'a> {
         result.decide_pass_fail();
         result
     }
+}
+
+#[cfg(test)]
+/// Tests of the RuleSet.
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[allow(unused_imports)]
+    use spectral::prelude::*;
+
+    /// Test the execution of a RuleSet where the Rules come in already ordered properly.
+    #[test]
+    fn exec_ordered() {
+
+    }
+
 }
