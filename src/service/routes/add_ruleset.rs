@@ -23,12 +23,21 @@ pub struct AddRulesetRequest {
     pub category : Option<String>,
 
     /// Uncompiled rules as a list of strings.
-    pub rule_source: Vec<String>
+    /// If empty or omitted, ruleset_source must be supplied instead.
+    #[serde(default = "default_rule_source")]
+    pub rule_source: Vec<String>,
+
+    /// Uncompiled `RuleSet` as a single string that must be parsed into separate `Rules`.
+    /// If omitted, rule_source must be supplied instead.
+    #[serde(default = "default_ruleset_source")]
+     pub ruleset_source: Option<String>
 }
 
 fn default_context_name() -> String { "$".into() }
 fn default_success_criteria() -> SuccessCriteria { SuccessCriteria::LastPasses }
 fn default_category() -> Option<String> { None }
+fn default_rule_source() -> Vec<String> { Vec::new() }
+fn default_ruleset_source() -> Option<String> { None }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddRulesetResponse<'a> {
@@ -53,9 +62,15 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let mut state = data.write().unwrap();
     state.tally();
 
-    let ruleset_result = RuleSet::new((*path).clone(), req.context_name.clone(), req.criteria, req.category.clone(), &req.rule_source);
-
-    println!("Add Ruleset for {}", *path);
+    let ruleset_result =
+        match &req.ruleset_source {
+            Some(ruleset_text) => {
+                RuleSet::new_from_text(ruleset_text, false)
+            },
+            None => {
+                RuleSet::new((*path).clone(), req.context_name.clone(), req.criteria, req.category.clone(), &req.rule_source)
+            }
+        };
 
     let response = 
         match ruleset_result {
