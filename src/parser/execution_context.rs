@@ -50,6 +50,13 @@ type Ctx<'a> = ExecutionContext<'a>;
 
 impl<'a> ExecutionContext<'a> {
 
+    /// Get an alphabetized list of the names of all the implemented functions. 
+    pub fn function_names(&self) -> Vec<String> {
+        let mut names : Vec<String> = self.functions.keys().map(|k| k.clone()).collect();
+        names.sort();
+        names
+    }
+
     pub fn shy_func<F>(f: F) -> ShyFunction<'a>
         where F: Fn(ShyValue) -> ShyValue + 'a {
             Box::new(f) as ShyFunction

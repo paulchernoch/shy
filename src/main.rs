@@ -46,11 +46,29 @@ use service::shy_service;
 #[allow(unused_imports)]
 use parser::ShuntingYard;
 
-/// Read-execute-print-loop - an terminal-based interactive formula executor.
+/// Read-execute-print-loop - a terminal-based interactive formula executor.
 fn repl() {
     use std::io::{stdin,stdout,Write};
     let mut ctx = ExecutionContext::default();
     let mut trace_on = false;
+
+let help_message = r#"
+    Shy REPL (Read-Execute-Print-Loop)
+    Enter an expression followed by a carriage return to see the result of evaluating it.
+    Or enter one of the following commands:
+
+        exit ......... Quit the application.
+        functions .... Display a list of all supported functions.
+        help ......... Display this help message.
+        trace on ..... Turn on detailed trace of all expression execution. 
+        trace off .... Turn off detailed trace of all expression execution. 
+        quit ......... Quit the application.
+
+    Variables set by one expression are remembered and can be used as 
+    inputs to subsequent expressions.
+    "#;
+
+    println!("{}", help_message);
     loop {
         let mut input=String::new();
         print!("> ");
@@ -65,6 +83,14 @@ fn repl() {
         if command == "trace off" {
             trace_on = false; 
             continue; 
+        }
+        if command == "functions" {
+            println!("Available Functions:\n  {}", ctx.function_names().join("\n  "));
+            continue;
+        }
+        if command == "help" || command == "?" {
+            println!("{}", help_message);
+            continue;
         }
         let shy: ShuntingYard = command.into();
         match shy.compile() {
