@@ -584,6 +584,50 @@ mod tests {
     }
 
     #[test]
+    fn exec_sum() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 1);
+        ctx.store(&"c".into(), 2);
+        ctx.store(&"d".into(), 3);
+        let expected: ShyValue = 6.0.into();
+        execute_test_case("a = sum(b,c,d)", &mut ctx, &expected, true); 
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
+    }
+
+    #[test]
+    fn exec_product() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 1);
+        ctx.store(&"c".into(), 2);
+        ctx.store(&"d".into(), 3);
+        let expected: ShyValue = 6.0.into();
+        execute_test_case("a = product(b,c,d)", &mut ctx, &expected, true); 
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
+    }
+
+   #[test]
+    fn exec_max() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 1);
+        ctx.store(&"c".into(), 2);
+        ctx.store(&"d".into(), 3);
+        let expected: ShyValue = 3.into();
+        execute_test_case("a = max(b,c,d)", &mut ctx, &expected, true); 
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
+    }
+
+    #[test]
+    fn exec_min() {
+        let mut ctx = ExecutionContext::default();
+        ctx.store(&"b".into(), 1);
+        ctx.store(&"c".into(), 2);
+        ctx.store(&"d".into(), 3);
+        let expected: ShyValue = 1.into();
+        execute_test_case("a = min(b,c,d)", &mut ctx, &expected, true); 
+        asserting("result written to context").that(&ctx.load(&"a").unwrap()).is_equal_to(&expected);
+    }
+
+    #[test]
     fn exec_regex() {
         let mut ctx = ExecutionContext::default();
         ctx.store(&"a".into(), "A9123");

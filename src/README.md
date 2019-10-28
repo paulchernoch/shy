@@ -57,7 +57,14 @@ Expressions may be written using the following elements:
 
   - **function calls** - If a token resembling a variable name immediately precedes an opening parenthesis, that name will be interpreted as a function name. Shy recognizes the common trigonometric functions, like `sin`, `cos`, and `tan`, as well as `exp`, `ln`, `sqrt` and `abs`. The caller can also define their own functions and bind them to an `ExecutionContext`. One useful function is `if(test, a, b)`, which takes three expressions: a test returning true or false, a second to return if the test is true, and a third to return if the test is false. See method `ExecutionContext::standard_functions` for the full list of predefined functions. (Also see method `standard_variables` for the list of predefined constants, including `π, e and φ`.)
 
-One subset of the functions are the voting functions, that take one or more expressions that evaluate to true or false:
+One subset of functions is the aggregate functions, that accept one or more values in parentheses:
+
+  - max - finds the maximum of a list of values
+  - min - finds the minimum of a list of values
+  - sum - adds the values in the list
+  - product - multiplies the values in the list
+
+A second subset of the functions is the voting functions, that take one or more expressions that evaluate to true or false:
 
   -  none - True if None are true
   -  one - True if Exactly one is true

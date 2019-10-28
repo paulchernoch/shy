@@ -4,6 +4,7 @@ use serde_json::{Value};
 use crate::parser::execution_context::ExecutionContext;
 use crate::parser::expression::{Expressive, Expression};
 use crate::parser::shy_token::ShyValue;
+use crate::parser::shy_scalar::ShyScalar;
 use super::{Rule, RuleType};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
@@ -366,6 +367,11 @@ impl<'a> RuleSet<'a> {
             // Capture value of rule execution, including whether it had an error.
             let (rule_value, rule_had_error) =
                 match exec_result {
+                    Ok(ShyValue::Scalar(ShyScalar::Error(error_val))) => {
+                        result.rules_with_errors_count += 1;
+                        result.errors.push(format!("Rule `{}` had error: {:?}", rule.name, error_val));
+                        (ShyValue::error(error_val), true)
+                    },
                     Ok(val) => {
                         (val, false)
                     },
@@ -465,7 +471,7 @@ mod tests {
 
         asserting("Car should be worth buying").that(&exec_result.did_ruleset_pass).is_equal_to(true);
         asserting("3 of 4 tests should have passed").that(&exec_result.passing_applicable_rule_count).is_equal_to(3);
-        asserting("4 of 5 tests should be applicable").that(&exec_result.applicable_rule_count).is_equal_to(3);
+        asserting("4 of 5 tests should be applicable").that(&exec_result.applicable_rule_count).is_equal_to(4);
         
     }
 

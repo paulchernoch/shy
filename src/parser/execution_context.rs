@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::f64;
 use std::fmt;
+use std::cmp::{Ordering, PartialOrd};
 use serde::{Serialize, Deserialize};
 
 use super::shy_scalar::ShyScalar;
@@ -167,6 +168,34 @@ impl<'a> ExecutionContext<'a> {
                 _ => ShyValue::error(format!("'{}' function requires a vector as argument", function_name).into())
             }
         })
+    } 
+
+    /// Create a ShyFunction that performs aggregation over a ShyValue::Vector. 
+    /// 
+    /// This can be used to build functions like max, min and sum.
+    ///   - `function_name` is the name to use for the function, 
+    ///      which will then be made available by that spelling to Expressions that call that function. 
+    ///   - `init` is the value to use as the initial value for the aggregation. 
+    ///      For max this should be the minimum floating point value, for min the maximum float, 
+    ///      for sum, a zero, and for product, a one.
+    ///   - `aggr` is a function that can take an accumulated value and apply 
+    ///      an additional value to extend the aggregation, like the `Iterator` Trait's `fold` method. 
+    pub fn shy_aggregate_func<F>(function_name : String, init : &ShyScalar, aggr : F) -> ShyFunction<'a>
+    where F : Fn(ShyScalar,ShyScalar) -> ShyScalar + 'a + Clone
+    {
+        let init2 = init.clone();
+        let aggr2 = aggr.clone();
+        Ctx::shy_func(move |v| {
+            match v {
+                ShyValue::Vector(ref vect) if vect.len() == 0 => ShyValue::Scalar(ShyScalar::Null),
+                ShyValue::Vector(ref vect) if vect.len() == 1 => ShyValue::Scalar(vect[0].clone()),
+                ShyValue::Vector(ref vect) if vect.len() > 1 => {
+                    let aggregate = vect.iter().fold(init2.clone(), |a,item| aggr2(a,item.clone()));
+                    ShyValue::Scalar(aggregate.clone())
+                },
+                _ => ShyValue::error(format!("'{}' function requires a vector as argument", function_name).into())
+            }
+        })
     }  
 
     pub fn standard_functions() -> HashMap<String, ShyFunction<'a>> {
@@ -217,6 +246,18 @@ impl<'a> ExecutionContext<'a> {
         map.insert("allbutone".into(), Ctx::shy_voting_func("allbutone".into(), VotingRule::AllButOne));
         map.insert("all".into(), Ctx::shy_voting_func("all".into(), VotingRule::All));
         map.insert("unanimous".into(), Ctx::shy_voting_func("unanimous".into(), VotingRule::Unanimous));
+
+        // Aggregate functions max, min, sum, product
+        map.insert("max".into(), Ctx::shy_aggregate_func("max".into(), &ShyScalar::Rational(f64::MIN), 
+            |a,b| match a.partial_cmp(&b) { Some(Ordering::Greater) => a.clone(), _ => b.clone() }));
+        map.insert("min".into(), Ctx::shy_aggregate_func("min".into(), &ShyScalar::Rational(f64::MAX), 
+            |a,b| match a.partial_cmp(&b) { Some(Ordering::Less) => a.clone(), _ => b.clone() }));
+        map.insert("sum".into(), Ctx::shy_aggregate_func("sum".into(), &ShyScalar::Rational(0_f64), 
+            |a,b| { { if let ShyValue::Scalar(result) = ShyValue::add(&ShyValue::Scalar(a.clone()), &ShyValue::Scalar(b.clone())) { return result; } }
+                ShyScalar::Error(format!("Unable to add {:?} + {:?}", a, b))}));
+        map.insert("product".into(), Ctx::shy_aggregate_func("product".into(), &ShyScalar::Rational(1_f64), 
+            |a,b| { { if let ShyValue::Scalar(result) = ShyValue::multiply(&ShyValue::Scalar(a.clone()), &ShyValue::Scalar(b.clone())) { return result; } }
+                ShyScalar::Error(format!("Unable to multiply {:?} * {:?}", a, b))}));
 
         map
     }

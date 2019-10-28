@@ -1,7 +1,8 @@
 
 use std::convert::TryFrom;
+use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
-use super::shy_token;
+use super::shy_token::{is_truthy, ShyValue};
 
 //..................................................................
 
@@ -23,7 +24,7 @@ impl ShyScalar {
             ShyScalar::Boolean(value) => *value,
             ShyScalar::Integer(value) => *value != 0,
             ShyScalar::Rational(value) => *value != 0.0,
-            ShyScalar::String(value) => shy_token::is_truthy(value),
+            ShyScalar::String(value) => is_truthy(value),
             _ => false
         }
     }
@@ -102,4 +103,10 @@ impl TryFrom<ShyScalar> for String {
     }
 }
 
-
+impl PartialOrd for ShyScalar {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let self_value = ShyValue::Scalar(self.clone());
+        let other_value = ShyValue::Scalar(other.clone());
+        self_value.partial_cmp(&other_value)
+    }
+}

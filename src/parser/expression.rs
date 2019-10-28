@@ -110,6 +110,10 @@ impl<'a> Expression<'a> {
     /// the `Expression` will contribute to the decision as to whether a `RuleSet` passes or fails.
     ///   - The `QuitIfFalse` operator has a side effect of marking the results of the current `Rule` as **inapplicable**
     /// if it encounters a `false` value. 
+    /// 
+    /// There are two ways that the returned value can indicate an error: 
+    ///   - an Err(error), 
+    ///   - an Ok(ShyValue::Scalar(ShyScalar::Error(error)))
     pub fn exec(&self, context: &mut ExecutionContext<'a>) -> std::result::Result<ShyValue,String> {
         let mut output_stack : Vec<ShyValue> = vec![];
         context.is_applicable = true;
