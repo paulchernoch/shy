@@ -55,12 +55,13 @@ impl ListRulesetsResponse {
 fn route((query, data): (web::Query<ListRulesetsQuery>, web::Data<RwLock<ServiceState>>)) -> HttpResponse {
     let mut state = data.write().unwrap();
     state.tally();
+    let wildcard = "*".to_string();
     println!("Query for rulesets with category {}", query.category);
     let mut names : Vec<String> = state.ruleset_cache
       .values().iter()
       .filter(|r| 
-          if let Some(ref cat) = (*r).category { *cat == query.category || query.category == "*".to_string() } 
-          else { false }
+          if let Some(ref cat) = (*r).category { *cat == query.category || query.category == wildcard } 
+          else { query.category == wildcard }
       )
       .map(|r| r.name.clone())
       .collect();

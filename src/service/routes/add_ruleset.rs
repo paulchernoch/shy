@@ -75,6 +75,7 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let response = 
         match ruleset_result {
             Ok(ruleset) => {
+                println!("Attempt to write RuleSet named '{}' to cache", &ruleset.name);
                 state.ruleset_cache.add_or_replace(&ruleset.name, &ruleset, true);
                 AddRulesetResponse::new_with_success(ruleset)
             },
