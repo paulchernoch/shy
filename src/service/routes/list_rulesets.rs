@@ -56,7 +56,7 @@ fn route((query, data): (web::Query<ListRulesetsQuery>, web::Data<RwLock<Service
     let mut state = data.write().unwrap();
     state.tally();
     let wildcard = "*".to_string();
-    println!("Query for rulesets with category {}", query.category);
+    
     let mut names : Vec<String> = state.ruleset_cache
       .values().iter()
       .filter(|r| 

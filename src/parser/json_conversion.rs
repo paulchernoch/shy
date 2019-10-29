@@ -139,11 +139,11 @@ impl<'a> From<&ExecutionContext<'a>> for Value {
     fn from(ctx : &ExecutionContext<'a>) -> Self {
         let mut variables_serde_map : Map<String, Value> = Map::with_capacity(ctx.variables.len());
         for (key, val) in &ctx.variables {
-            variables_serde_map[key] = val.into();
+            variables_serde_map.insert(key.clone(), val.into());
         }
         let mut ctx_serde_map : Map<String, Value> = Map::with_capacity(2);
-        ctx_serde_map["is_applicable".into()] = Value::Bool(ctx.is_applicable);
-        ctx_serde_map["variables".into()] =  Value::Object(variables_serde_map);
+        ctx_serde_map.insert("is_applicable".into(), Value::Bool(ctx.is_applicable));
+        ctx_serde_map.insert("variables".into(), Value::Object(variables_serde_map));
         Value::Object(ctx_serde_map)
     }
 }
@@ -245,7 +245,14 @@ mod tests {
         asserting("NaN Value conversion")
           .that(&(match nan_shy_value { ShyValue::Scalar(ShyScalar::Rational(r)) => r.is_nan(), _ => false }))
           .is_equal_to(true);
-
-  
     }
+
+    #[test]
+    /// Test conversion from ExecutionContext into Serde Values using the From/Into Traits.
+    fn execution_context_to_serde_value() {
+        let ctx = ExecutionContext::default();
+        // Just ensure that it does not panic.
+        let _value : Value = ctx.into();
+    }
+
 }

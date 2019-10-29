@@ -83,6 +83,9 @@ fn route((path, req, data): (web::Path<String>, web::Json<ExecuteRulesetRequest>
     state.tally();
 
     let ruleset_name = (*path).clone();
+
+    println!("Look in cache for a RuleSet named '{}' to execute", ruleset_name);
+
     let http_response; 
     let found_in_cache;
     let mut ruleset;

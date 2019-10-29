@@ -1097,7 +1097,7 @@ mod tests {
     #[test]
     /// Verify that the correct operator precedence is returned.
     fn operator_precedence() {
-        assert_that!(ShyOperator::Or.precedence()).is_equal_to(4);
+        assert_that!(ShyOperator::Or.precedence()).is_equal_to(5);
     }
 
     #[test]

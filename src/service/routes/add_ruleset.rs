@@ -39,6 +39,9 @@ fn default_category() -> Option<String> { None }
 fn default_rule_source() -> Vec<String> { Vec::new() }
 fn default_ruleset_source() -> Option<String> { None }
 
+/// Structures the response to an Add Ruleset REST request.
+/// 
+/// From this struct you can infer the JSON format of the response. 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddRulesetResponse<'a> {
     pub ruleset: Option<RuleSet<'a>>,
@@ -75,7 +78,6 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let response = 
         match ruleset_result {
             Ok(ruleset) => {
-                println!("Attempt to write RuleSet named '{}' to cache", &ruleset.name);
                 state.ruleset_cache.add_or_replace(&ruleset.name, &ruleset, true);
                 AddRulesetResponse::new_with_success(ruleset)
             },

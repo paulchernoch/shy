@@ -373,6 +373,7 @@ impl<'a> RuleSet<'a> {
                         (ShyValue::error(error_val), true)
                     },
                     Ok(val) => {
+                        println!("Rule `{}` had no error, but had value {:?}", rule.name, val);
                         (val, false)
                     },
                     Err(error_val) => {
@@ -389,8 +390,14 @@ impl<'a> RuleSet<'a> {
                     if result.context.is_applicable {
                         result.applicable_rule_count += 1;
                         if !rule_had_error {
-                            result.passing_applicable_rule_count += 1;
-                            result.did_last_applicable_rule_pass = true;
+                            // Decide if the result of the expression is false or not. 
+                            if rule_value.is_truthy() {
+                                result.passing_applicable_rule_count += 1;
+                                result.did_last_applicable_rule_pass = true;
+                            }
+                            else {
+                                result.did_last_applicable_rule_pass = false;
+                            }
                         }
                         else {
                             result.did_last_applicable_rule_pass = false;

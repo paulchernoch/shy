@@ -497,6 +497,26 @@ mod tests {
         ]);
     }
 
+    /// Verify that the comma operator causes the division in the first argument
+    /// to be performed before the comma and second argument are copied to the output stack.
+    #[test]
+    fn comma() {
+        compile_test_case(
+            "good_price = min(50000 / car.age, 30000)", 
+            vec![
+            ShyToken::Value(ShyValue::Variable("good_price".into())),
+            ShyToken::Value(ShyValue::FunctionName("min".into())),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(50000))),
+            ShyToken::Value(ShyValue::PropertyChain(vec!["car".into(), "age".into()].into())),
+            ShyOperator::Load.into(),
+            ShyOperator::Divide.into(),
+            ShyToken::Value(ShyValue::Scalar(ShyScalar::Integer(30000))),
+            ShyOperator::Comma.into(),
+            ShyOperator::FunctionCall.into(),
+            ShyOperator::Assign.into()
+        ]);
+    }
+
     #[test]
     fn context_call() {
         let ctx = ExecutionContext::default();
