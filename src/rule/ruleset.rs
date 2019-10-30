@@ -373,7 +373,6 @@ impl<'a> RuleSet<'a> {
                         (ShyValue::error(error_val), true)
                     },
                     Ok(val) => {
-                        println!("Rule `{}` had no error, but had value {:?}", rule.name, val);
                         (val, false)
                     },
                     Err(error_val) => {
