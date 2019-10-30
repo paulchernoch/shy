@@ -62,9 +62,9 @@ NOTE: At this time, only these routes are supported:
   - Create RuleSet: **PUT /rulesets/{name}**
   - Read RuleSet: **GET /rulesets/{name}**
   - Delete RuleSet: **DELETE /rulesets/{name}**
-  - Execute RuleSet: **DELETE /rulesets/{name}**
+  - Execute RuleSet: **POST /rulesets/{name}**
   
-This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
+The expression tester covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
 ## Examples
 
