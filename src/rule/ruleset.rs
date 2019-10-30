@@ -26,12 +26,14 @@ pub enum SuccessCriteria {
     NeverPass,
     
     /// If all predicates that are relevant are true, and at least one predicate is relevant, the RuleSet passes. 
+    /// This is the equivalent of combining applicable rules with the `logical AND` operator.
     AllPass,
     
     /// If one more than half of all relevant predicate rules pass, the RuleSet passes. 
     MajorityPass,
 
     /// If at least one predicate Rule is relevant and true, the RuleSet passes. 
+    /// This is the equivalent of combining applicable rules with the `logical OR` operator.
     AnyPass,
 
     /// If the last predicate that is relevant passes, the RuleSet passes. 
@@ -40,7 +42,7 @@ pub enum SuccessCriteria {
     LastPasses,
 
     /// The RuleSet is asserted to always pass. 
-    /// The use case is RuleSets that merely set properties and make no assertion of pass or fail. 
+    /// The use case is `RuleSets` that merely set properties and make no assertion of pass or fail. 
     AlwaysPass
 }
 

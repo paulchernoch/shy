@@ -23,6 +23,12 @@ To change the IP address and port:
 ```
     > cargo run service <ip-address> <port>
 ```
+
+The logging middleware for the Web Service may be configured by setting two environment variables:
+
+  - **RUST_LOG** - This defines which severity of messages to log and is specified by the `Actix` framework and defaults to `actix_web=info`. You can also set it to `actix_web=debug`, `actix_web=trace`, `actix_web=warn` or `actix_web=error`.
+  - **RUST_LOG_FORMAT** - This defines the log message format. This environment variable is not specified by `Actix`, but the format string is. See here for a list of the valid format specifiers: https://docs.rs/actix-web/1.0.0/actix_web/middleware/struct.Logger.html
+  
   
 
 ## REST Commands
@@ -56,6 +62,7 @@ NOTE: At this time, only these routes are supported:
   - Create RuleSet: **PUT /rulesets/{name}**
   - Read RuleSet: **GET /rulesets/{name}**
   - Delete RuleSet: **DELETE /rulesets/{name}**
+  - Execute RuleSet: **DELETE /rulesets/{name}**
   
 This covers the cases **Execute Expression** and **Execute Expression with Context** from above.
 
@@ -176,3 +183,85 @@ _HTTP Command_:   **GET /rulesets**
   "error":null
 }
 ```
+
+6. Execute a `RuleSet`. For this example, we will first create a new `RuleSet`, then execute it.
+
+_First HTTP Command_:   **PUT /rulesets/Decide-if-car-worth-buying**
+
+**Request body:**
+
+```
+{
+	"category" : "transportation",
+	"ruleset_source" : "          rule.name = \"RuleSet header\"\n          rule.type = \"Property\";\n          ruleset.name = \"Decide-if-car-worth-buying\";\n          ruleset.context_name = \"car\";\n          ruleset.criteria = \"MajorityPass\";\n          ruleset.category = \"Test\";\n          applicable = false? ;\n\n          rule.name = \"car age\";\n          rule.type = \"Predicate\";\n          not_too_old = car.age < 8 || (car.age < 12 && car.make == \"Honda\");\n\n          rule.name = \"car price\";\n          rule.type = \"Predicate\";\n          good_price = min(50000 / car.age, 30000);\n          not_too_expensive = car.price < good_price;\n\n          rule.name = \"car miles driven\";\n          rule.type = \"Predicate\";\n          good_miles_driven = car.miles_driven < 100000 || (car.miles_driven < 150000 && car.make == \"Honda\");\n          \n          rule.name = \"car accidents\";\n          rule.type = \"Predicate\";\n          not_too_many_accidents = car.accidents == 0 || (car.accidents <= 1 && car.make == \"BMW\");"
+}
+```
+
+The above request looks ugly, but that is because you need to escape newlines and double quotes in JSON strings. This is what the unescaped formula would look like to a user as they define it in a front-end application, before it is converted into JSON and escaped: ):
+
+```
+          rule.name = "RuleSet header";
+          rule.type = "Property";
+          ruleset.name = "Decide-if-car-worth-buying";
+          ruleset.context_name = "car";
+          ruleset.criteria = "MajorityPass";
+          ruleset.category = "Test";
+          applicable = false? ;
+
+          rule.name = "car age";
+          rule.type = "Predicate";
+          not_too_old = car.age < 8 || (car.age < 12 && car.make == "Honda");
+
+          rule.name = "car price";
+          rule.type = "Predicate";
+          good_price = min(50000 / car.age, 30000);
+          not_too_expensive = car.price < good_price;
+
+          rule.name = "car miles driven";
+          rule.type = "Predicate";
+          good_miles_driven = car.miles_driven < 100000 || (car.miles_driven < 150000 && car.make == "Honda");
+          
+          rule.name = "car accidents";
+          rule.type = "Predicate";
+          not_too_many_accidents = car.accidents == 0 || (car.accidents <= 1 && car.make == "BMW");"
+```
+
+Much more readable, no? Observe the structure of a `RuleSet`.
+
+  - Rules can span multiple lines; they are separated by a blank lines.
+  - The first rule defines the `RuleSet` itself. It is marked as` rule.type = "Property"`, meaning it does not contribute to the pass/fail decision. It just defines needed properties, namely metadata about the `RuleSet`. It also defines the evaluation criteria. `ruleset.criteria` may equal any of these values:
+
+       * **NeverPass** - When we have decision trees implemented, this can be used for a catchall `RuleSet` for failing decision paths.
+       * **AllPass** - If you want to combine the results of all the `Rules` in the `RuleSet` together using a logical _AND_, use this to require that all of them pass.
+       * **MajorityPass** - Use this if you want over half the `Rules` to pass, but permit a few to fail.
+       * **AnyPass** - If you want to combine the results of all the `Rules` in the `RuleSet` together using a logical _OR_, use this to require that at least one of them pass.
+       * **LastPasses** - If you wish to specify in detail through coordinating `Rules` whether the `RuleSet` should pass and intend to make the final `Rule` decide the result, use this. All `Rules` will be run, but only the result of the final `Rule` will be used to decide if the `RuleSet` passes.
+       * **AlwaysPass** - When we have decision trees implemented, this can be used for a catchall `RuleSet` for successful decision paths. ALternately, it can be used when the goal is to return a value other than true/false, such as for a cost model formula.
+
+_Now we execute the ruleset._
+
+_Second HTTP Command_:   **POST /rulesets/Decide-if-car-worth-buying**
+
+**Request body:**
+
+```
+{
+    "context" : {
+       "make" : "Honda",
+       "age" : 10,
+       "miles_driven" : 120000,
+       "price" : 4750,
+       "accidents" : 2
+    },
+    "context_name" : "car",
+    "return_context" : true,
+    "trace_on" : true
+}
+
+```
+
+How do we understand the execute request? The context is the input variables available to your formulas. `context_name` is the first part of the variable reference expected in the expressions. So for example, to reference `miles_driven` in a formula, we prefix the reference with the `context_name`, which gives us `car.miles_driven`.
+
+`trace_on` turns on printing of extensive trace statements to the service log.
+
+`return_context` should be `true` if you want the intermediate values stored in the context during the rule execution to be returned, which can help you debug your rules. If `false`, you only get the pass or failure returned.

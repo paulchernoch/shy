@@ -9,10 +9,16 @@ The main modules of this application are:
   1. `lexer` - The struct `Lexer` preprocesses the text into a stream of tokens, like number literals, variable names, and math operators. The lexical analyzer uses a pushdown automata state machine to interpret the individual characters and combine them to form tokens.
   2. `parser` - The struct `ShuntingYard` accepts the tokens and applies the **Shunting Yard** algorithm to reorder the tokens into a postfix order `Expression` struct. For example, if the original formula in infix order is "1 + 2", in postfix order it would be "1", "2", "+". This module also evaluates the resulting expression and provides the `ShyAssociation` trait and `ShyObject` struct to perform crude reflection. This permits the caller to use their own structs as context for the formulas. That way variables in the formulas can read from and write to the user supplied context, which is managed by the `ExecutionContext` struct.
   3. `cache` - Parsing the expressions takes almost 90% of the time when executing an expression, but we can cache already compiled expressions so that they may be reused. `ApproximateLRUCache` (which implements the `Cache` trait) can be used to map the uncompiled string form of the expression with its compiled `Expression`. 
+  4. `graph` - Performs a topological sort of a graph.
+ This is needed to sort expressions in dependency order.
+  5. `rule` - Defines `Rule` and `RuleSet` on top of `Expression`. A `RuleSet` can pass or fail depending on its `SuccessCriteria`. 
+  6. `service` - Defines the RESTful Web Service using the `Actix` framework, with its routes, request and response structures.
 
 ## Repl
 
-The file **main.rs** contains the function `repl()`, which means **read-execute-print-loop**. You can use it to test the formula parser and evaluator. (It does not use the cache.)
+The file **main.rs** contains the function `repl()`, which means **read-execute-print-loop**. You can use it to test the formula parser and evaluator. (It does not use the cache, nor does it start the Web Service. For information on configuring, running and using the Web Service, go here:
+[REST API for Shy Rules Service](./service/README.md)
+)
 
 To run the repl, type this:
 
@@ -28,6 +34,7 @@ There are a few special commands:
   - **trace off** - Turn off the detailed execution tracing.
   - **exit** - Exit the program.
   - **quit** - Exit the program.
+  - **help** - Print a help message listing available commands.
 
 ## Expression Syntax
 
