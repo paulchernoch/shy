@@ -2,6 +2,8 @@ use std::sync::RwLock;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use actix_web::{post, web, HttpResponse};
+use log::{info};
+
 use super::super::service_state::ServiceState;
 use crate::cache::Cache;
 use crate::parser::execution_context::ExecutionContext;
@@ -84,7 +86,7 @@ fn route((path, req, data): (web::Path<String>, web::Json<ExecuteRulesetRequest>
 
     let ruleset_name = (*path).clone();
 
-    println!("Look in cache for a RuleSet named '{}' to execute", ruleset_name);
+    info!(target: "service::routes", "Look in cache for a RuleSet named '{}' to execute", ruleset_name);
 
     let http_response; 
     let found_in_cache;

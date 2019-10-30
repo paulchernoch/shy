@@ -2,6 +2,7 @@ use std::sync::RwLock;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use actix_web::{delete, web, HttpResponse};
+use log::{warn, info};
 extern crate chrono;
 use super::super::service_state::ServiceState;
 use crate::cache::Cache;
@@ -17,6 +18,7 @@ pub struct DeleteRulesetResponse {
 
 impl DeleteRulesetResponse {
     pub fn new_with_error(error : String) -> Self {
+        warn!(target: "service::routes", "Delete RuleSet. {}", error);
         DeleteRulesetResponse { success : false, error : Some(error.into()) }
     }
     pub fn new_with_success() -> Self {
@@ -31,6 +33,7 @@ fn route((path, data): (web::Path<String>, web::Data<RwLock<ServiceState>>)) -> 
     state.tally();
 
     let ruleset_name = (*path).clone();
+    info!(target: "service::routes", "Delete a RuleSet named '{}'", ruleset_name);
     let response =
       if state.ruleset_cache.remove(&ruleset_name) { DeleteRulesetResponse::new_with_success() }
       else { DeleteRulesetResponse::new_with_error(format!("Unable to delete {}. RuleSet not found.", ruleset_name)) };

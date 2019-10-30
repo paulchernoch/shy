@@ -2,6 +2,7 @@ use std::sync::RwLock;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use actix_web::{put, web, HttpResponse};
+use log::{warn, info};
 use crate::rule::ruleset::{RuleSet, SuccessCriteria};
 use super::super::service_state::ServiceState;
 use crate::cache::Cache;
@@ -51,6 +52,7 @@ pub struct AddRulesetResponse<'a> {
 
 impl<'a> AddRulesetResponse<'a> {
     pub fn new_with_error(error : String, compiled_ruleset : Option<RuleSet<'a>>) -> Self {
+        warn!(target: "service::routes", "Add RuleSet. {}", error);
         AddRulesetResponse { ruleset : compiled_ruleset, success : false, error : Some(error.into()) }
     }
     pub fn new_with_success(compiled_ruleset : RuleSet<'a>) -> Self {
@@ -65,13 +67,16 @@ fn route((path, req, data): (web::Path<String>, web::Json<AddRulesetRequest>, we
     let mut state = data.write().unwrap();
     state.tally();
 
+    let ruleset_name = (*path).clone();
+    info!(target: "service::routes", "Add or replace a RuleSet named '{}'", ruleset_name);
+
     let ruleset_result =
         match &req.ruleset_source {
             Some(ruleset_text) => {
                 RuleSet::new_from_text(ruleset_text, false)
             },
             None => {
-                RuleSet::new((*path).clone(), req.context_name.clone(), req.criteria, req.category.clone(), &req.rule_source)
+                RuleSet::new(ruleset_name, req.context_name.clone(), req.criteria, req.category.clone(), &req.rule_source)
             }
         };
 

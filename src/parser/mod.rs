@@ -5,6 +5,7 @@ use std::fmt::Result;
 use std::marker::PhantomData;
 use crate::lexer::parser_token::ParserToken;
 use crate::lexer::Lexer;
+use log::{warn, debug};
 
 pub mod indent;
 // use indent::*;
@@ -103,7 +104,7 @@ impl<'a> ShuntingYard<'a> {
           |ptoken: &ParserToken| {
               let stoken: ShyToken = ptoken.clone().into();
               if stoken.is_error() {
-                  println!("Parser unable to translate ParserToken {} '{}' into a ShyToken", ptoken.name(), ptoken.to_string());
+                  warn!("Parser unable to translate ParserToken {} '{}' into a ShyToken", ptoken.name(), ptoken.to_string());
               }
               stoken
           }
@@ -163,7 +164,7 @@ impl<'a> ShuntingYard<'a> {
                             Some(ShyOperator::OpenParenthesis) => break,
                             Some(op) => self.postfix_order.push(ShyToken::Operator(op)),
                             None => { 
-                                println!("Unbalanced closing parenthesis:\n{:?}", self);
+                                debug!(target: "parser", "Unbalanced closing parenthesis:\n{:?}", self);
                                 return Err("Unbalanced closing parenthesis".to_string())
                             }
                         }

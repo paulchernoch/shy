@@ -29,7 +29,22 @@ The logging middleware for the Web Service may be configured by setting two envi
   - **RUST_LOG** - This defines which severity of messages to log and is specified by the `Actix` framework and defaults to `actix_web=info`. You can also set it to `actix_web=debug`, `actix_web=trace`, `actix_web=warn` or `actix_web=error`.
   - **RUST_LOG_FORMAT** - This defines the log message format. This environment variable is not specified by `Actix`, but the format string is. See here for a list of the valid format specifiers: https://docs.rs/actix-web/1.0.0/actix_web/middleware/struct.Logger.html
   
+One useful feature for debugging the `RuleSet` execution is to trace the entire process of evaluating the rules.
+The caller must set "trace_on" in the JSON request but also you must configure the service to enable trace messages to be shown.
+Here is one way to accomplish that:
+
+```
+    > RUST_LOG="info,parser::expression=trace,actix_web=info" cargo run service
+```
   
+You must match targets in the trace!, debug!, info!, warn! and error! macros to set the logging level.
+
+  - The relevant target for a detailed execution trace is `parser::expression`.
+  - The target for info and warning messages in the route handlers is `service::routes`.
+  - The target that Actix uses for its messages is `actix_web`.
+
+Additionally, the **cargo.toml** file sets a compile time limit for the **log** level, and can distinguish between release and debug builds.
+Settings made there cause the log messages to be compiled out of the executable, overruling the environment variable settings.
 
 ## REST Commands
 

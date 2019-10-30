@@ -3,6 +3,7 @@ use std::time::SystemTime;
 use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use actix_web::{get, web, HttpResponse};
+use log::{info, warn};
 extern crate chrono;
 use chrono::offset::Utc;
 use chrono::DateTime;
@@ -27,6 +28,7 @@ pub struct GetRulesetResponse<'a> {
 
 impl<'a> GetRulesetResponse<'a> {
     pub fn new_with_error(error : String, compiled_ruleset : Option<RuleSet<'a>>) -> Self {
+        warn!(target: "service::routes", "Get RuleSet. {}", error);
         GetRulesetResponse { ruleset : compiled_ruleset, created : None, success : false, error : Some(error.into()) }
     }
     pub fn new_with_success(compiled_ruleset : RuleSet<'a>, created : Option<SystemTime>) -> Self {
@@ -48,6 +50,8 @@ fn route((path, data): (web::Path<String>, web::Data<RwLock<ServiceState>>)) -> 
     state.tally();
 
     let ruleset_name = (*path).clone();
+    info!(target: "service::routes", "Get a RuleSet named '{}'", ruleset_name);
+
     let response = 
         match state.ruleset_cache.get(&ruleset_name) {
             Some((ruleset, time)) => GetRulesetResponse::new_with_success(ruleset, Some(time)),

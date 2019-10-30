@@ -6,6 +6,7 @@ use std::result::Result;
 use std::borrow::BorrowMut;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use log::{trace};
 
 use super::shy_token::{ShyToken, ShyValue};
 use super::ShuntingYard;
@@ -118,13 +119,13 @@ impl<'a> Expression<'a> {
         let mut output_stack : Vec<ShyValue> = vec![];
         context.is_applicable = true;
         if self.trace_on {
-            println!("Tracing: {}", self.expression_source);
+            trace!(target: "parser::expression", "Tracing: {}", self.expression_source);
             Self::dump_postfix(&self.postfix_order);
         }
         for token in self.postfix_order.iter().cloned() {
             if self.trace_on {
                 Self::dump_stack(&output_stack);
-                println!("  Token: {:?}", token);
+                trace!(target: "parser::expression", "  Token: {:?}", token);
             }
             match token {
                 ShyToken::Value(value) => output_stack.push(value),
@@ -154,20 +155,20 @@ impl<'a> Expression<'a> {
     }
 
     fn dump_stack(output_stack: &Vec<ShyValue>) {
-        println!("Output Stack:");
+        trace!("Output Stack:");
         let mut i = 0;
         for token in output_stack.iter().cloned() {
             i = i + 1;
-            println!("  {}. {:?}", i, token);
+            trace!(target: "parser::expression", "  {}. {:?}", i, token);
         }
     }
 
     fn dump_postfix(postfix_order: &Vec<ShyToken>) {
-        println!("Postfix order:");
+        trace!(target: "parser::expression", "Postfix order:");
         let mut i = 0;
         for token in postfix_order.iter().cloned() {
             i = i + 1;
-            println!("  {}. {:?}", i, token);
+            trace!(target: "parser::expression", "  {}. {:?}", i, token);
         }
     }
 
@@ -177,10 +178,10 @@ impl<'a> Expression<'a> {
         self.trace_on = true;
         let exec_result = self.exec(context);
         match &exec_result {
-            Ok(_) => { println!("Success"); },
-            Err(msg) => { println!("Failure: {}", msg); }
+            Ok(_) => { trace!(target: "parser::expression", "Success"); },
+            Err(msg) => { trace!(target: "parser::expression", "Failure: {}", msg); }
         }
-        println!("After execution, {:?}", context);
+        trace!(target: "parser::expression", "After execution, {:?}", context);
         self.trace_on = false;
         exec_result
     }
@@ -390,7 +391,6 @@ impl<'a> Expression<'a> {
             }
         }
         // Lazy initialization of references so next call to variables_used can use the memoized value. 
-        println!("In lazy_init_variables_used with {} defs and {} deps", definitions.len(), dependencies.len());
         let mut references_guard = self.references.as_ref().write().unwrap();
         references_guard.replace(References { definitions, dependencies, external_dependencies : Vec::new() });
         true
